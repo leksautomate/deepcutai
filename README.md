@@ -1,6 +1,31 @@
 # DeepCut AI - Faceless Video Generator
 
+[![GitHub](https://img.shields.io/badge/GitHub-leksautomate%2Fdeepcut--ai-blue)](https://github.com/leksautomate/deepcutai)
+
 AI-powered faceless video generation tool that automates the creation of YouTube-style videos. Users provide a topic, and the system generates scripts, voiceovers, images, and assembles everything into a final video.
+
+**GitHub Repository:** https://github.com/leksautomate/deepcutai
+
+---
+
+## One-Click Installation (Ubuntu/Debian)
+
+```bash
+# Download and run the installation script
+curl -fsSL https://raw.githubusercontent.com/leksautomate/deepcutai/main/install.sh -o install.sh
+chmod +x install.sh
+./install.sh
+```
+
+The script will:
+- Install all dependencies (Node.js, PostgreSQL, FFmpeg, Nginx, PM2)
+- Create the database automatically
+- Ask for admin username and password
+- Configure everything and start the app
+
+**API keys are optional during installation** - you can add them later through the Settings page after login.
+
+---
 
 ## Features
 
@@ -55,12 +80,19 @@ AI-powered faceless video generation tool that automates the creation of YouTube
 - PM2 (process manager)
 - Certbot (for SSL)
 
-## API Keys Required
+## API Keys (Optional During Installation)
 
-- **GEMINI_API_KEY** - Google AI Studio (free tier available)
-- **SPEECHIFY_API_KEY** - Speechify TTS API
-- **FREEPIK_API_KEY** - Freepik AI Image Generation
-- **GROQ_API_KEY** - Groq LLM API (optional, for faster inference)
+All API keys can be configured AFTER installation through the Settings page. You don't need them to install!
+
+| Provider | Required For | Get Key From |
+|----------|--------------|--------------|
+| **Gemini** | Script generation | [Google AI Studio](https://makersuite.google.com/app/apikey) (free) |
+| **Speechify** | TTS (Option 1) | [Speechify API](https://speechify.com/api) |
+| **Inworld** | TTS (Option 2) | [Inworld AI](https://inworld.ai) |
+| **Freepik** | Images (Option 1) | [Freepik API](https://www.freepik.com/api) |
+| **WaveSpeed** | Images (Option 2) | [WaveSpeed](https://wavespeed.ai) |
+| **RunPod** | Images (Option 3) | [RunPod](https://runpod.io) |
+| **Groq** | Image prompts (optional) | [Groq](https://console.groq.com) |
 
 ## Environment Variables
 
@@ -206,7 +238,7 @@ psql -U deepcut -d deepcut -h localhost
 ```bash
 sudo mkdir -p /var/www
 cd /var/www
-git clone https://github.com/yourusername/deepcut-ai.git
+git clone https://github.com/leksautomate/deepcutai.git deepcut-ai
 cd deepcut-ai
 ```
 
@@ -608,8 +640,19 @@ sudo tail -f /var/log/nginx/error.log
 | `FREEPIK_API_KEY` | No* | For Seedream/Freepik images |
 | `WAVESPEED_API_KEY` | No* | For WaveSpeed images |
 | `RUNPOD_API_KEY` | No* | For RunPod images |
+| `COOKIE_SECURE` | No | Set to `false` if not using HTTPS |
 
 *Can be set via Settings page after login instead of environment variables.
+
+### If You Can't Use HTTPS
+
+If you're testing without SSL or can't set up HTTPS, add this to your .env file:
+```
+COOKIE_SECURE=false
+```
+Then restart: `pm2 restart deepcut-ai`
+
+**Warning:** This is less secure and not recommended for production.
 
 ---
 

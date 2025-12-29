@@ -61,13 +61,25 @@ export function setupAuth(app: Express) {
     console.error("[AUTH] Failed to create admin user:", err.message);
   });
 
+  // Cookie secure setting:
+  // - In production: secure by default (requires HTTPS)
+  // - Set COOKIE_SECURE=false to disable (for HTTP-only setups)
+  const isProduction = process.env.NODE_ENV === "production";
+  const cookieSecure = process.env.COOKIE_SECURE === "false" ? false : isProduction;
+  
+  if (isProduction && !cookieSecure) {
+    console.warn("[AUTH] Warning: Running in production with insecure cookies (HTTP mode)");
+  }
+
   const sessionSettings: session.SessionOptions = {
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      secure: cookieSecure,
+      httpOnly: true,
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   };
