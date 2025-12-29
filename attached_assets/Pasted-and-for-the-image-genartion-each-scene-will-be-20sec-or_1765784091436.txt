@@ -1,0 +1,489 @@
+and for the image genartion each scene will be 20sec  or split by word 60 words each , ❌ Don’t force a new image
+✅ Merge with next line until you hit:
+
+~15–25 seconds OR
+
+~60 words 
+
+Target 45–55 words per scene
+✔ Hard cap at 60 words
+✔ Time window: 15–25 seconds
+✔ 1 image per scene
+✔ 3 scenes per minute
+
+
+or user can set it and for image generation
+
+
+Create image from text - Seedream v4
+
+curl --request POST \
+  --url https://api.freepik.com/v1/ai/text-to-image/seedream-v4 \
+  --header 'Content-Type: application/json' \
+  --header 'x-freepik-api-key: <api-key>' \
+  --data '
+{
+  "prompt": "<string>",
+  "webhook_url": "https://www.example.com/webhook",
+  "aspect_ratio": "square_1_1",
+  "guidance_scale": 2.5,
+  "seed": 1073741823
+}
+'
+
+
+{
+  "data": {
+    "generated": [],
+    "task_id": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
+    "status": "IN_PROGRESS"
+  }
+}
+Seedream 4
+Create image from text - Seedream v4
+Convert descriptive text input into images using AI. This endpoint accepts a variety of parameters to customize the generated images.
+
+POST
+/
+v1
+/
+ai
+/
+text-to-image
+/
+seedream-v4
+
+Try it
+Authorizations
+​
+x-freepik-api-key
+stringheaderrequired
+Your Freepik API key. Required for authentication. Learn how to obtain an API key
+
+Body
+application/json
+​
+prompt
+stringrequired
+The text prompt used to generate the image
+
+​
+webhook_url
+string<uri>
+Optional callback URL that will receive asynchronous notifications whenever the task changes status. The payload sent to this URL is the same as the corresponding GET endpoint response, but without the data field.
+
+Example:
+"https://www.example.com/webhook"
+
+​
+aspect_ratio
+enum<string>default:square_1_1
+The aspect ratio of the generated image
+
+Available options: square_1_1, widescreen_16_9, social_story_9_16, portrait_2_3, traditional_3_4, standard_3_2, classic_4_3 
+​
+guidance_scale
+numberdefault:2.5
+Controls how closely the output image aligns with the input prompt. Higher values mean stronger prompt correlation.
+
+Required range: 0 <= x <= 20
+​
+seed
+integer
+Random seed to control the stochasticity of image generation
+
+Required range: 0 <= x <= 2147483647
+Response
+
+200
+
+application/json
+OK - The request has succeeded and the Seedream v4 process has started.
+
+​
+data
+objectrequired
+Show child attributes
+
+Example:
+{
+  "task_id": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
+  "status": "CREATED",
+  "generated": [
+    "https://openapi-generator.tech",
+    "https://openapi-generator.tech"
+  ]
+}
+Was this page helpful?
+
+
+Yes
+
+No
+
+
+
+Get the status of the Seedream v4 task
+
+curl --request GET \
+  --url https://api.freepik.com/v1/ai/text-to-image/seedream-v4/{task-id} \
+  --header 'x-freepik-api-key: <api-key>'
+
+
+{
+  "data": {
+    "generated": [
+      "https://ai-statics.freepik.com/completed_task_image.jpg"
+    ],
+    "task_id": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
+    "status": "COMPLETED"
+  }
+}
+
+
+
+
+
+speechify:
+
+# Speech
+
+POST https://api.sws.speechify.com/v1/audio/speech
+Content-Type: application/json
+
+Gets the speech data for the given input
+
+Reference: https://docs.sws.speechify.com/api-reference/api-reference/tts/audio/speech
+
+## OpenAPI Specification
+
+```yaml
+openapi: 3.1.1
+info:
+  title: Speech
+  version: endpoint_tts/audio.speech
+paths:
+  /v1/audio/speech:
+    post:
+      operationId: speech
+      summary: Speech
+      description: Gets the speech data for the given input
+      tags:
+        - - subpackage_tts
+          - subpackage_tts/audio
+      parameters:
+        - name: Authorization
+          in: header
+          description: >-
+            Bearer authentication of the form `Bearer <token>`, where token is
+            your auth token.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Response with status 200
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/type_tts:GetSpeechResponse'
+        '400':
+          description: Invalid request params
+          content: {}
+        '401':
+          description: Unauthorized
+          content: {}
+        '402':
+          description: Insufficient credits
+          content: {}
+        '403':
+          description: Request access rejected
+          content: {}
+        '500':
+          description: Internal server error
+          content: {}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                audio_format:
+                  $ref: >-
+                    #/components/schemas/type_tts/audio:GetSpeechRequestAudioFormat
+                input:
+                  type: string
+                language:
+                  type: string
+                model:
+                  $ref: '#/components/schemas/type_tts/audio:GetSpeechRequestModel'
+                options:
+                  $ref: '#/components/schemas/type_tts:GetSpeechOptionsRequest'
+                voice_id:
+                  type: string
+              required:
+                - input
+                - voice_id
+components:
+  schemas:
+    type_tts/audio:GetSpeechRequestAudioFormat:
+      type: string
+      enum:
+        - value: wav
+        - value: mp3
+        - value: ogg
+        - value: aac
+        - value: pcm
+    type_tts/audio:GetSpeechRequestModel:
+      type: string
+      enum:
+        - description: >-
+            simba-base is deprecated. Use simba-english or simba-multilingual
+            instead.
+          value: simba-base
+        - description: simba-english is optimized for English words.
+          value: simba-english
+        - description: >-
+            simba-multilingual is optimized for non-English words or mixed
+            languages.
+          value: simba-multilingual
+        - description: simba-turbo is deprecated. Use simba-multilingual instead.
+          value: simba-turbo
+    type_tts:GetSpeechOptionsRequest:
+      type: object
+      properties:
+        loudness_normalization:
+          type: boolean
+        text_normalization:
+          type: boolean
+    type_tts:GetSpeechResponseAudioFormat:
+      type: string
+      enum:
+        - value: wav
+        - value: mp3
+        - value: ogg
+        - value: aac
+        - value: pcm
+    type_tts:NestedChunk:
+      type: object
+      properties:
+        end:
+          type: integer
+          format: int64
+        end_time:
+          type: number
+          format: double
+        start:
+          type: integer
+          format: int64
+        start_time:
+          type: number
+          format: double
+        type:
+          type: string
+        value:
+          type: string
+    type_tts:SpeechMarks:
+      type: object
+      properties:
+        chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/type_tts:NestedChunk'
+        end:
+          type: integer
+          format: int64
+        end_time:
+          type: number
+          format: double
+        start:
+          type: integer
+          format: int64
+        start_time:
+          type: number
+          format: double
+        type:
+          type: string
+        value:
+          type: string
+      required:
+        - chunks
+        - end
+        - end_time
+        - start
+        - start_time
+        - type
+    type_tts:GetSpeechResponse:
+      type: object
+      properties:
+        audio_data:
+          type: string
+          format: byte
+        audio_format:
+          $ref: '#/components/schemas/type_tts:GetSpeechResponseAudioFormat'
+        billable_characters_count:
+          type: integer
+          format: int64
+        speech_marks:
+          $ref: '#/components/schemas/type_tts:SpeechMarks'
+      required:
+        - audio_data
+        - audio_format
+        - billable_characters_count
+        - speech_marks
+
+```
+
+## SDK Code Examples
+
+```python
+from speechify import Speechify
+
+client = Speechify(
+    token="YOUR_TOKEN",
+)
+client.tts.audio.speech(
+    input="input",
+    voice_id="voice_id",
+)
+
+```
+
+```typescript
+import { SpeechifyClient } from "@speechify/api";
+
+const client = new SpeechifyClient({ token: "YOUR_TOKEN" });
+await client.tts.audio.speech({
+    input: "input",
+    voiceId: "voice_id"
+});
+
+```
+
+```go
+package main
+
+import (
+	"fmt"
+	"strings"
+	"net/http"
+	"io"
+)
+
+func main() {
+
+	url := "https://api.sws.speechify.com/v1/audio/speech"
+
+	payload := strings.NewReader("{\n  \"input\": \"input\",\n  \"voice_id\": \"voice_id\"\n}")
+
+	req, _ := http.NewRequest("POST", url, payload)
+
+	req.Header.Add("Authorization", "Bearer <token>")
+	req.Header.Add("Content-Type", "application/json")
+
+	res, _ := http.DefaultClient.Do(req)
+
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+
+	fmt.Println(res)
+	fmt.Println(string(body))
+
+}
+```
+
+```ruby
+require 'uri'
+require 'net/http'
+
+url = URI("https://api.sws.speechify.com/v1/audio/speech")
+
+http = Net::HTTP.new(url.host, url.port)
+http.use_ssl = true
+
+request = Net::HTTP::Post.new(url)
+request["Authorization"] = 'Bearer <token>'
+request["Content-Type"] = 'application/json'
+request.body = "{\n  \"input\": \"input\",\n  \"voice_id\": \"voice_id\"\n}"
+
+response = http.request(request)
+puts response.read_body
+```
+
+```java
+HttpResponse<String> response = Unirest.post("https://api.sws.speechify.com/v1/audio/speech")
+  .header("Authorization", "Bearer <token>")
+  .header("Content-Type", "application/json")
+  .body("{\n  \"input\": \"input\",\n  \"voice_id\": \"voice_id\"\n}")
+  .asString();
+```
+
+```php
+<?php
+
+$client = new \GuzzleHttp\Client();
+
+$response = $client->request('POST', 'https://api.sws.speechify.com/v1/audio/speech', [
+  'body' => '{
+  "input": "input",
+  "voice_id": "voice_id"
+}',
+  'headers' => [
+    'Authorization' => 'Bearer <token>',
+    'Content-Type' => 'application/json',
+  ],
+]);
+
+echo $response->getBody();
+```
+
+```csharp
+var client = new RestClient("https://api.sws.speechify.com/v1/audio/speech");
+var request = new RestRequest(Method.POST);
+request.AddHeader("Authorization", "Bearer <token>");
+request.AddHeader("Content-Type", "application/json");
+request.AddParameter("application/json", "{\n  \"input\": \"input\",\n  \"voice_id\": \"voice_id\"\n}", ParameterType.RequestBody);
+IRestResponse response = client.Execute(request);
+```
+
+```swift
+import Foundation
+
+let headers = [
+  "Authorization": "Bearer <token>",
+  "Content-Type": "application/json"
+]
+let parameters = [
+  "input": "input",
+  "voice_id": "voice_id"
+] as [String : Any]
+
+let postData = JSONSerialization.data(withJSONObject: parameters, options: [])
+
+let request = NSMutableURLRequest(url: NSURL(string: "https://api.sws.speechify.com/v1/audio/speech")! as URL,
+                                        cachePolicy: .useProtocolCachePolicy,
+                                    timeoutInterval: 10.0)
+request.httpMethod = "POST"
+request.allHTTPHeaderFields = headers
+request.httpBody = postData as Data
+
+let session = URLSession.shared
+let dataTask = session.dataTask(with: request as URLRequest, completionHandler: { (data, response, error) -> Void in
+  if (error != nil) {
+    print(error as Any)
+  } else {
+    let httpResponse = response as? HTTPURLResponse
+    print(httpResponse)
+  }
+})
+
+dataTask.resume()
+```
+
+VOice Id: fc4da0fd-52fb-4496-bd7f-b4a4e38dd57a - steep
+4a404804-3c9b-47d5-bd46-05d97122c841 - liam 
+
+user can add there 
+
+
+create a setting pages for all and also include api
