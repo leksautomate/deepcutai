@@ -10,7 +10,9 @@ The system supports **two TTS providers** that can be selected in the Asset Conf
 
 ### Supported TTS Providers
 1. **Speechify** - Default provider with multiple voices (George, Maisie, Henry, Carly, Oliver, Simone)
-2. **Inworld TTS** - Alternative provider with word-level timestamp alignment support (Dennis, Jordan, Michelle, Alicia)
+2. **Inworld TTS** - Alternative provider with 12 voices:
+   - Male: Dennis, Alex, Craig, Mark, Shaun, Timothy
+   - Female: Ashley, Deborah, Elizabeth, Julia, Olivia, Sarah
 
 ### Custom Voices
 Users can add custom voices for either provider:
@@ -74,31 +76,79 @@ Users can configure API keys from the Settings page:
 
 ## Deployment
 
-### Required Secrets for Production
-Before publishing, ensure these secrets are configured:
+### Step 1: Configure Required Environment Variables
+Before publishing, you MUST set these environment variables/secrets:
 
-**Authentication:**
-- `SESSION_SECRET` - Session encryption key
-- `ADMIN_USERNAME` - Your admin username
-- `ADMIN_PASSWORD` - Your admin password
+**Required for Login (MUST SET BEFORE FIRST USE):**
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SESSION_SECRET` | Random string for session encryption | `your-random-secret-key-here` |
+| `ADMIN_USERNAME` | Your admin login username | `admin` |
+| `ADMIN_PASSWORD` | Your admin login password | `your-secure-password` |
+| `DATABASE_URL` | PostgreSQL connection string | Auto-configured by Replit |
 
-**AI Services:**
-- `GEMINI_API_KEY` - Google Gemini API key for script generation
-- `SPEECHIFY_API_KEY` - Speechify API key for text-to-speech (optional if using Inworld)
-- `INWORLD_API_KEY` - Inworld API key for text-to-speech (optional if using Speechify)
-- `FREEPIK_API_KEY` - Freepik API key for Seedream image generation (optional if using other providers)
-- `WAVESPEED_API_KEY` - WaveSpeed API key for image generation (optional)
-- `RUNPOD_API_KEY` - RunPod API key for image generation (optional)
+### Step 2: First Login After Deployment
+1. Open your deployed app URL
+2. You'll see the login page
+3. Enter your `ADMIN_USERNAME` and `ADMIN_PASSWORD` (from Step 1)
+4. The admin account is auto-created on first startup
 
-**Database:**
-- `DATABASE_URL` - PostgreSQL connection string (automatically configured by Replit)
+### Step 3: Configure API Keys (After Logging In)
+**IMPORTANT: You must be logged in to save API keys. If you get a 401 Unauthorized error, it means you're not logged in.**
 
-### Publishing
+1. Click the Settings icon (gear) in the sidebar
+2. Go to "API Keys" tab
+3. Enter your API keys:
+   - **Gemini AI** - For script generation (required)
+   - **Speechify** - For TTS (optional, if using Speechify)
+   - **Inworld TTS** - For TTS (optional, if using Inworld)
+   - **Freepik/Seedream** - For image generation (optional)
+   - **WaveSpeed** - For image generation (optional)
+   - **RunPod** - For image generation (optional)
+4. Click "Save" - keys are stored in the database
+
+### Alternative: Set API Keys via Environment Variables
+You can also set API keys as environment variables (useful for VPS/server deployments):
+| Variable | Description |
+|----------|-------------|
+| `GEMINI_API_KEY` | Google Gemini API key |
+| `SPEECHIFY_API_KEY` | Speechify API key |
+| `INWORLD_API_KEY` | Inworld TTS API key |
+| `FREEPIK_API_KEY` | Freepik/Seedream API key |
+| `WAVESPEED_API_KEY` | WaveSpeed API key |
+| `RUNPOD_API_KEY` | RunPod API key |
+
+The app checks both database-stored keys AND environment variables. Database keys take priority.
+
+### Troubleshooting Deployment Issues
+
+**401 Unauthorized when saving API keys:**
+- You are not logged in. Go to the login page and enter your admin credentials first.
+- Make sure `ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables are set correctly.
+
+**Can't log in:**
+- Verify `SESSION_SECRET`, `ADMIN_USERNAME`, and `ADMIN_PASSWORD` are set in your environment.
+- Check that the database is connected (`DATABASE_URL` is set).
+- Try restarting the server after setting environment variables.
+
+**API keys not working:**
+- Make sure you're using the correct API key format for each provider.
+- WaveSpeed keys start with `wsk_...`
+- Inworld keys require the full API key from your Inworld account.
+
+### Publishing on Replit
 Use Replit's built-in deployment to publish the app. The platform handles:
 - Building the application
 - SSL/TLS certificates
 - Health checks
 - Custom domain support (optional)
+
+### Self-Hosting on VPS
+1. Clone the repository
+2. Set all required environment variables (see Step 1 and Alternative section)
+3. Run `npm install`
+4. Run `npm run db:push` to set up the database
+5. Run `npm run build` then `npm start` for production
 
 ## User Preferences
 
