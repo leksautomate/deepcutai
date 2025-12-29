@@ -5,12 +5,14 @@ AI-powered faceless video generation tool that automates the creation of YouTube
 ## Features
 
 - **AI Script Generation** - Generate video scripts from any topic using Google Gemini
-- **Text-to-Speech** - Professional voiceovers with Speechify TTS
-- **AI Image Generation** - Create stunning visuals with Freepik AI (Seedream v4)
+- **Multi-Provider TTS** - Choose between Speechify (6 voices) or Inworld TTS (12 voices)
+- **Multi-Provider Image Generation** - Seedream/Freepik, WaveSpeed, or RunPod
 - **Video Rendering** - Automatic video assembly with FFmpeg
 - **Background Processing** - Generate videos in the background while you work
+- **Per-Project Settings** - Customize scene word counts per project
 - **Thumbnail Design** - AI-powered custom thumbnail generation
 - **Multiple Styles** - Cinematic, Anime, Realistic, Illustration, and Abstract
+- **Custom Voices** - Add your own voice IDs for any TTS provider
 - **Page Transitions** - Smooth animations between pages
 
 ## Tech Stack
@@ -19,7 +21,7 @@ AI-powered faceless video generation tool that automates the creation of YouTube
 - **Backend**: Node.js, Express, TypeScript
 - **Database**: PostgreSQL with Drizzle ORM
 - **Video**: FFmpeg for rendering
-- **AI Services**: Google Gemini, Speechify TTS, Freepik AI, Groq
+- **AI Services**: Google Gemini, Speechify TTS, Inworld TTS, Freepik AI, WaveSpeed, RunPod
 
 ## VPS System Requirements
 
@@ -62,20 +64,44 @@ AI-powered faceless video generation tool that automates the creation of YouTube
 
 ## Environment Variables
 
-Create a `.env` file with:
+Create a `.env` file with ALL of these variables:
 
 ```env
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/deepcut
+# ===========================================
+# REQUIRED - App won't work without these
+# ===========================================
 
-# AI Services
+# Database Connection
+DATABASE_URL=postgresql://deepcut:your_password@localhost:5432/deepcut
+
+# Authentication (MUST SET THESE FIRST!)
+SESSION_SECRET=generate_a_random_64_character_string_here
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your_secure_admin_password
+
+# ===========================================
+# AI SERVICES - Set via UI or Environment
+# ===========================================
+# You can set these here OR through the Settings page after logging in
+# If set here, they work immediately without UI configuration
+
 GEMINI_API_KEY=your_gemini_api_key
 GROQ_API_KEY=your_groq_api_key
-SPEECHIFY_API_KEY=your_speechify_api_key
-FREEPIK_API_KEY=your_freepik_api_key
 
-# Session
-SESSION_SECRET=your_random_secret_string
+# TTS Providers (choose one or both)
+SPEECHIFY_API_KEY=your_speechify_api_key
+INWORLD_API_KEY=your_inworld_api_key
+
+# Image Generators (choose one or more)
+FREEPIK_API_KEY=your_freepik_api_key
+WAVESPEED_API_KEY=your_wavespeed_api_key
+RUNPOD_API_KEY=your_runpod_api_key
+```
+
+### Generate a Session Secret
+```bash
+# Run this command to generate a secure session secret:
+openssl rand -hex 32
 ```
 
 ## Local Development
@@ -95,7 +121,23 @@ The app runs on `http://localhost:5000`
 
 ---
 
-# VPS Deployment Guide
+# VPS Deployment Guide (Ubuntu/Debian)
+
+> **IMPORTANT**: This app requires HTTPS for login to work! Sessions use secure cookies.
+> Complete ALL steps including SSL setup before trying to log in.
+
+## Quick Start Checklist
+1. [ ] Install Node.js 20+, PostgreSQL, FFmpeg
+2. [ ] Create PostgreSQL database
+3. [ ] Clone repository and install dependencies
+4. [ ] Create `.env` file with ALL required variables
+5. [ ] Build and push database schema
+6. [ ] Setup PM2 process manager
+7. [ ] Configure Nginx reverse proxy
+8. [ ] **Install SSL certificate (REQUIRED for login!)**
+9. [ ] Test login and API key configuration
+
+---
 
 ## Step 1: Server Setup
 
@@ -107,21 +149,22 @@ ssh root@your_server_ip
 ### Update system and install essentials
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install git curl build-essential -y
+sudo apt install git curl build-essential nano -y
 ```
 
-### Install Node.js (via NVM)
+### Install Node.js 20 (via NVM)
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 source ~/.bashrc
 nvm install 20
 nvm use 20
+node --version  # Should show v20.x.x
 ```
 
-### Install FFmpeg (required for video rendering)
+### Install FFmpeg (REQUIRED for video rendering)
 ```bash
 sudo apt install ffmpeg -y
-ffmpeg -version
+ffmpeg -version  # Verify installation
 ```
 
 ### Install PostgreSQL
@@ -129,14 +172,18 @@ ffmpeg -version
 sudo apt install postgresql postgresql-contrib -y
 sudo systemctl start postgresql
 sudo systemctl enable postgresql
+sudo systemctl status postgresql  # Should show "active (running)"
 ```
 
-### Create Database
+---
+
+## Step 2: Create Database
+
 ```bash
 sudo -u postgres psql
 ```
 
-In PostgreSQL:
+Run these SQL commands (replace `your_secure_password` with a strong password):
 ```sql
 CREATE USER deepcut WITH PASSWORD 'your_secure_password';
 CREATE DATABASE deepcut OWNER deepcut;
@@ -144,10 +191,20 @@ GRANT ALL PRIVILEGES ON DATABASE deepcut TO deepcut;
 \q
 ```
 
-## Step 2: Deploy Application
-
-### Clone your repository
+Test the connection:
 ```bash
+psql -U deepcut -d deepcut -h localhost
+# Enter your password when prompted
+# Type \q to exit
+```
+
+---
+
+## Step 3: Deploy Application
+
+### Create app directory and clone
+```bash
+sudo mkdir -p /var/www
 cd /var/www
 git clone https://github.com/yourusername/deepcut-ai.git
 cd deepcut-ai
@@ -163,7 +220,33 @@ npm install
 nano .env
 ```
 
-Add your environment variables (see above).
+**PASTE THIS AND REPLACE ALL VALUES:**
+```env
+# Database - use the password you created above
+DATABASE_URL=postgresql://deepcut:your_secure_password@localhost:5432/deepcut
+
+# Authentication - REQUIRED!
+SESSION_SECRET=REPLACE_WITH_OUTPUT_OF_openssl_rand_hex_32
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your_secure_admin_password
+
+# AI Services - add your keys here OR configure in Settings after login
+GEMINI_API_KEY=
+GROQ_API_KEY=
+SPEECHIFY_API_KEY=
+INWORLD_API_KEY=
+FREEPIK_API_KEY=
+WAVESPEED_API_KEY=
+RUNPOD_API_KEY=
+```
+
+Generate a session secret:
+```bash
+openssl rand -hex 32
+# Copy the output and paste it as SESSION_SECRET value
+```
+
+Save and exit: `Ctrl+X`, then `Y`, then `Enter`
 
 ### Build the application
 ```bash
@@ -175,7 +258,18 @@ npm run build
 npm run db:push
 ```
 
-## Step 3: Install PM2
+### Test if it runs
+```bash
+npm start
+# Should see: "serving on port 5000"
+# Press Ctrl+C to stop
+```
+
+---
+
+## Step 4: Setup PM2 (Process Manager)
+
+PM2 keeps your app running 24/7 and restarts it if it crashes.
 
 ```bash
 npm install pm2@latest -g
@@ -186,11 +280,13 @@ npm install pm2@latest -g
 nano ecosystem.config.cjs
 ```
 
+Paste this content:
 ```javascript
 module.exports = {
   apps: [{
     name: 'deepcut-ai',
     script: './dist/index.cjs',
+    cwd: '/var/www/deepcut-ai',
     instances: 1,
     exec_mode: 'fork',
     env: {
@@ -207,22 +303,34 @@ module.exports = {
 };
 ```
 
-### Create log directory
+Save and exit: `Ctrl+X`, `Y`, `Enter`
+
+### Create log directory and start PM2
 ```bash
 sudo mkdir -p /var/log/pm2
 sudo chown $USER:$USER /var/log/pm2
-```
 
-### Start with PM2
-```bash
 pm2 start ecosystem.config.cjs
 pm2 save
 pm2 startup
 ```
 
-Copy and run the command PM2 outputs.
+**IMPORTANT**: PM2 will output a command starting with `sudo env PATH=...`. Copy and run that exact command!
 
-## Step 4: Setup Nginx
+### Verify PM2 is running
+```bash
+pm2 list
+# Should show deepcut-ai with status "online"
+
+pm2 logs deepcut-ai --lines 20
+# Should show server started messages
+```
+
+---
+
+## Step 5: Setup Nginx (Reverse Proxy)
+
+Nginx handles HTTPS and forwards requests to your Node.js app.
 
 ### Install Nginx
 ```bash
@@ -234,6 +342,7 @@ sudo apt install nginx -y
 sudo nano /etc/nginx/sites-available/deepcut
 ```
 
+**Replace `your_domain.com` with your actual domain:**
 ```nginx
 server {
     listen 80;
@@ -263,36 +372,92 @@ server {
 }
 ```
 
+Save and exit: `Ctrl+X`, `Y`, `Enter`
+
 ### Enable the site
 ```bash
 sudo ln -s /etc/nginx/sites-available/deepcut /etc/nginx/sites-enabled/
-sudo nginx -t
+sudo rm /etc/nginx/sites-enabled/default  # Remove default site
+sudo nginx -t  # Test config - should say "syntax is ok"
 sudo systemctl restart nginx
 sudo systemctl enable nginx
 ```
 
-## Step 5: Setup Firewall
+---
+
+## Step 6: Setup Firewall
 
 ```bash
 sudo ufw allow ssh
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw enable
+sudo ufw status  # Should show rules active
 ```
 
-## Step 6: SSL Certificate (HTTPS)
+---
 
+## Step 7: SSL Certificate (HTTPS) - REQUIRED FOR LOGIN!
+
+> **This step is CRITICAL!** Without SSL, login won't work because session cookies require HTTPS.
+
+### Point your domain to your server first
+Before this step, make sure your domain's DNS A record points to your server's IP address.
+
+### Install Certbot and get certificate
 ```bash
 sudo apt install certbot python3-certbot-nginx -y
 sudo certbot --nginx -d your_domain.com
+```
+
+Follow the prompts:
+- Enter your email
+- Agree to terms
+- Choose whether to redirect HTTP to HTTPS (recommended: Yes)
+
+### Verify SSL works
+```bash
 sudo certbot renew --dry-run
 ```
 
+### Test in browser
+Open `https://your_domain.com` - you should see the login page with a padlock icon.
+
+---
+
+## Step 8: First Login and API Key Configuration
+
+Now you can log in and configure your API keys!
+
+### Login
+1. Open `https://your_domain.com` in your browser
+2. Enter your `ADMIN_USERNAME` and `ADMIN_PASSWORD` (from your .env file)
+3. Click Login
+
+### Configure API Keys (after logging in)
+1. Click the Settings icon (gear) in the sidebar
+2. Click "Configure Keys" button
+3. Enter your API keys:
+   - **Gemini** - Required for script generation
+   - **Inworld** - For Inworld TTS (if using)
+   - **WaveSpeed** - For WaveSpeed image generation (if using)
+   - **Speechify** - For Speechify TTS (if using)
+   - **Freepik** - For Seedream image generation (if using)
+4. Click "Save API Keys"
+
+---
+
 ## Quick Update Script
 
-Create `deploy.sh`:
+Create this script to easily update your deployment:
+
+```bash
+nano deploy.sh
+```
+
 ```bash
 #!/bin/bash
+echo "=== DeepCut AI Deployment ==="
 echo "Pulling latest code..."
 git pull origin main
 
@@ -308,7 +473,8 @@ npm run db:push
 echo "Restarting PM2..."
 pm2 restart deepcut-ai
 
-echo "Deployment complete!"
+echo "=== Deployment complete! ==="
+pm2 logs deepcut-ai --lines 5
 ```
 
 ```bash
@@ -316,45 +482,137 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-## PM2 Commands
+---
+
+## PM2 Commands Reference
 
 ```bash
 pm2 list                    # Show all processes
-pm2 logs deepcut-ai         # View logs
-pm2 monit                   # Real-time monitoring
+pm2 logs deepcut-ai         # View live logs
+pm2 logs deepcut-ai --lines 100  # View last 100 log lines
+pm2 monit                   # Real-time monitoring dashboard
 pm2 restart deepcut-ai      # Restart app
 pm2 stop deepcut-ai         # Stop app
 pm2 delete deepcut-ai       # Remove from PM2
 ```
 
+---
+
 ## Troubleshooting
 
-### Check logs
+### 401 Unauthorized when saving API keys
+
+**Cause**: You're not logged in, OR SSL is not configured.
+
+**Fix**:
+1. Make sure you're accessing via `https://` (not `http://`)
+2. Make sure SSL certificate is installed (Step 7)
+3. Log in first, then try saving API keys
+4. Check if cookies are enabled in your browser
+5. Try in incognito/private mode
+
+### Can't log in
+
+**Check these in order:**
+
+1. **SSL is working?**
+   ```bash
+   curl -I https://your_domain.com
+   # Should return 200 OK
+   ```
+
+2. **Environment variables are set?**
+   ```bash
+   cat /var/www/deepcut-ai/.env | grep -E "(SESSION_SECRET|ADMIN)"
+   # Should show your variables
+   ```
+
+3. **App is running?**
+   ```bash
+   pm2 list
+   # Should show deepcut-ai as "online"
+   ```
+
+4. **Database is running?**
+   ```bash
+   sudo systemctl status postgresql
+   ```
+
+5. **Check app logs for errors:**
+   ```bash
+   pm2 logs deepcut-ai --lines 50
+   ```
+
+### Login page loads but login fails
+
+1. Check if admin user was created:
+   ```bash
+   pm2 logs deepcut-ai --lines 100 | grep AUTH
+   # Should show "Admin user created" or "Admin user already exists"
+   ```
+
+2. Restart PM2 after changing .env:
+   ```bash
+   pm2 restart deepcut-ai
+   ```
+
+### Check all logs
 ```bash
 pm2 logs deepcut-ai --lines 100
 sudo tail -f /var/log/nginx/error.log
+sudo tail -f /var/log/nginx/access.log
 ```
 
-### Check if app is running
+### Check if app is running locally
 ```bash
 pm2 list
 curl http://localhost:5000
+# Should return HTML
 ```
 
 ### Database connection issues
 ```bash
 sudo systemctl status postgresql
 psql -U deepcut -d deepcut -h localhost
+# Should connect (enter password when prompted)
 ```
 
 ### FFmpeg issues
 ```bash
 ffmpeg -version
 which ffmpeg
+# Should show version and path
 ```
+
+### Nginx issues
+```bash
+sudo nginx -t
+sudo systemctl status nginx
+sudo tail -f /var/log/nginx/error.log
+```
+
+---
+
+## Environment Variables Reference
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `SESSION_SECRET` | Yes | Random string for session encryption |
+| `ADMIN_USERNAME` | Yes | Admin login username |
+| `ADMIN_PASSWORD` | Yes | Admin login password |
+| `GEMINI_API_KEY` | No* | For script generation |
+| `GROQ_API_KEY` | No | For image prompt enhancement |
+| `SPEECHIFY_API_KEY` | No* | For Speechify TTS |
+| `INWORLD_API_KEY` | No* | For Inworld TTS |
+| `FREEPIK_API_KEY` | No* | For Seedream/Freepik images |
+| `WAVESPEED_API_KEY` | No* | For WaveSpeed images |
+| `RUNPOD_API_KEY` | No* | For RunPod images |
+
+*Can be set via Settings page after login instead of environment variables.
+
+---
 
 ## License
 
 MIT
-# Deepcutai
-# Deepcutai
