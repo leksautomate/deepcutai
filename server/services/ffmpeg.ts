@@ -65,13 +65,38 @@ function getMotionFilter(motion: MotionEffect | undefined, duration: number, wid
   }
 }
 
+async function getAudioDuration(audioPath: string): Promise<number> {
+  return new Promise((resolve) => {
+    const ffprobe = spawn("ffprobe", [
+      "-v", "error",
+      "-show_entries", "format=duration",
+      "-of", "default=noprint_wrappers=1:nokey=1",
+      audioPath,
+    ]);
+
+    let output = "";
+    ffprobe.stdout.on("data", (data) => {
+      output += data.toString();
+    });
+
+    ffprobe.on("close", () => {
+      const duration = parseFloat(output.trim());
+      resolve(isNaN(duration) ? 5 : duration);
+    });
+
+    ffprobe.on("error", () => {
+      resolve(5);
+    });
+  });
+}
+
 async function createSceneVideo(
   scene: Scene,
   projectDir: string,
   index: number,
   width: number,
   height: number
-): Promise<{ success: boolean; videoPath?: string; error?: string }> {
+): Promise<{ success: boolean; videoPath?: string; duration?: number; error?: string }> {
   const imageFile = scene.imageFile ? path.join(process.cwd(), "public", scene.imageFile) : null;
   const audioFile = scene.audioFile ? path.join(process.cwd(), "public", scene.audioFile) : null;
 
@@ -79,7 +104,15 @@ async function createSceneVideo(
     return { success: false, error: `Image file not found for scene ${scene.id}` };
   }
 
-  const duration = scene.durationInSeconds || 5;
+  // Get actual audio duration if audio exists, otherwise use scene duration
+  let duration = scene.durationInSeconds || 5;
+  if (audioFile && fs.existsSync(audioFile)) {
+    const audioDuration = await getAudioDuration(audioFile);
+    // Use audio duration + small buffer to ensure audio completes fully
+    duration = Math.max(duration, audioDuration + 0.1);
+    console.log(`Scene ${index}: Using audio duration ${audioDuration.toFixed(2)}s (+ 0.1s buffer)`);
+  }
+
   const sceneVideoPath = path.join(projectDir, `scene-${index}-video.mp4`);
   const motionFilter = getMotionFilter(scene.motion, duration, width, height);
 
@@ -105,6 +138,7 @@ async function createSceneVideo(
 
   if (audioFile && fs.existsSync(audioFile)) {
     const sceneWithAudioPath = path.join(projectDir, `scene-${index}-with-audio.mp4`);
+    // Use audio as the primary duration source - video already matches audio length
     const audioArgs = [
       "-y",
       "-i", sceneVideoPath,
@@ -114,18 +148,17 @@ async function createSceneVideo(
       "-b:a", "256k",
       "-map", "0:v:0",
       "-map", "1:a:0",
-      "-shortest",
       sceneWithAudioPath,
     ];
 
     const audioResult = await runFFmpeg(audioArgs);
     if (audioResult.success) {
       fs.unlinkSync(sceneVideoPath);
-      return { success: true, videoPath: sceneWithAudioPath };
+      return { success: true, videoPath: sceneWithAudioPath, duration };
     }
   }
 
-  return { success: true, videoPath: sceneVideoPath };
+  return { success: true, videoPath: sceneVideoPath, duration };
 }
 
 function getTransitionFilter(transition: TransitionEffect | undefined): string {
@@ -171,7 +204,8 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
       continue;
     }
     sceneVideos.push(result.videoPath);
-    sceneDurations.push(scene.durationInSeconds || 5);
+    // Use actual duration from createSceneVideo (includes audio duration + buffer)
+    sceneDurations.push(result.duration || scene.durationInSeconds || 5);
   }
 
   if (sceneVideos.length === 0) {
