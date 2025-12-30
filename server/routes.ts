@@ -338,16 +338,20 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
       }
 
-      const result = await generateScript(parsed.data);
+      const userId = (req.user as any)?.id;
+      const result = await generateScript({ ...parsed.data, userId });
       
       res.json({
         title: result.title,
         script: result.script,
         scenes: result.scenes,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Script generation error:", error);
-      res.status(500).json({ error: "Failed to generate script" });
+      const message = error.message?.includes("API key not configured") 
+        ? error.message 
+        : "Failed to generate script";
+      res.status(500).json({ error: message });
     }
   });
 

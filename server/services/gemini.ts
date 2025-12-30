@@ -1,11 +1,19 @@
 import { GoogleGenAI } from "@google/genai";
+import { getResolvedApiKey } from "./api-keys";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+async function getGeminiClient(userId?: string): Promise<GoogleGenAI> {
+  const apiKey = await getResolvedApiKey("gemini", userId);
+  if (!apiKey) {
+    throw new Error("Gemini API key not configured. Please add it in Settings.");
+  }
+  return new GoogleGenAI({ apiKey });
+}
 
 export interface GenerateScriptOptions {
   topic: string;
   style?: "educational" | "entertaining" | "documentary" | "storytelling";
   duration?: "short" | "medium" | "long";
+  userId?: string;
 }
 
 export interface GeneratedScript {
@@ -15,7 +23,7 @@ export interface GeneratedScript {
 }
 
 export async function generateScript(options: GenerateScriptOptions): Promise<GeneratedScript> {
-  const { topic, style = "educational", duration = "medium" } = options;
+  const { topic, style = "educational", duration = "medium", userId } = options;
 
   const durationGuide = {
     short: "3-5 sentences, about 1-2 minutes when spoken",
@@ -52,6 +60,7 @@ Return your response as JSON with this exact structure:
 }`;
 
   try {
+    const ai = await getGeminiClient(userId);
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
@@ -68,13 +77,16 @@ Return your response as JSON with this exact structure:
       script: parsed.script || parsed.scenes?.join("\n\n") || "",
       scenes: parsed.scenes || parsed.script?.split(/\n\n+/).filter((s: string) => s.trim()) || [],
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini script generation error:", error);
+    if (error.message?.includes("API key not configured")) {
+      throw error;
+    }
     throw new Error("Failed to generate script with AI");
   }
 }
 
-export async function generateImagePrompt(sceneText: string, imageStyle: string): Promise<string> {
+export async function generateImagePrompt(sceneText: string, imageStyle: string, userId?: string): Promise<string> {
   const styleDescriptions: Record<string, string> = {
     cinematic: "cinematic, high-quality, dramatic lighting, movie-like composition",
     anime: "anime style, Japanese animation, vibrant colors, detailed",
@@ -100,6 +112,7 @@ Generate a single, detailed image prompt that:
 Return ONLY the image prompt, nothing else.`;
 
   try {
+    const ai = await getGeminiClient(userId);
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
