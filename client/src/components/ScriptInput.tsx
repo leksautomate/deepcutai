@@ -19,8 +19,8 @@ interface ScriptInputProps {
 
 export function ScriptInput({ script, title, onScriptChange, onTitleChange }: ScriptInputProps) {
   const [topic, setTopic] = useState("");
-  const [style, setStyle] = useState("educational");
-  const [duration, setDuration] = useState("medium");
+  const [style, setStyle] = useState("documentary");
+  const [duration, setDuration] = useState("1min");
   const { toast } = useToast();
 
   const generateMutation = useMutation({
@@ -155,9 +155,10 @@ From smart assistants to self-driving cars, AI is everywhere."
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="short">Short (1-2 min)</SelectItem>
-                  <SelectItem value="medium">Medium (3-5 min)</SelectItem>
-                  <SelectItem value="long">Long (5-10 min)</SelectItem>
+                  <SelectItem value="30s">30 Seconds</SelectItem>
+                  <SelectItem value="1min">1 Minute</SelectItem>
+                  <SelectItem value="2min">2 Minutes</SelectItem>
+                  <SelectItem value="10min">10 Minutes</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -12,7 +12,7 @@ async function getGeminiClient(userId?: string): Promise<GoogleGenAI> {
 export interface GenerateScriptOptions {
   topic: string;
   style?: "educational" | "entertaining" | "documentary" | "storytelling";
-  duration?: "short" | "medium" | "long";
+  duration?: "30s" | "1min" | "2min" | "10min";
   userId?: string;
 }
 
@@ -22,41 +22,143 @@ export interface GeneratedScript {
   scenes: string[];
 }
 
+const VIRAL_SCRIPT_PROMPT = `You are an expert viral short-form content creator specializing in documentary scripts for YouTube Shorts, TikTok, Instagram Reels, and YouTube videos. Your scripts are optimized for maximum retention, emotional impact, and shareability.
+
+## WRITING RULES
+
+**Sentence Structure:**
+- 3-8 words per sentence (ideal)
+- One idea per line
+- Short, punchy, visual
+- Write for subtitles
+
+**Voice & Tone:**
+- Active voice dominates
+- Present tense for immediacy
+- Cold, factual documentary narrator
+- No emotional commentary ("sadly," "unfortunately")
+- No modern colloquialisms
+- Cinematic, visual language
+
+**TTS Optimization:**
+- Use periods for natural pauses
+- Em dashes (—) for dramatic breaks
+- Commas for flow within sentences
+- Write exactly as it should be spoken
+
+**Forbidden:**
+- Long paragraphs or run-on sentences
+- Over-explaining motivations
+- Flowery or poetic language
+- Naming subject before final reveal (if applicable)
+- Internal monologue or thoughts
+- Abstract concepts without concrete imagery
+
+## STORYTELLING TECHNIQUES
+
+**Mystery Preservation:**
+- Create information gaps: "No one knows why."
+- Build curiosity through contradictions
+- Use phrases like "To this day, historians debate..."
+
+**Emotional Peaks:**
+- Betrayal (midpoint or climax)
+- Impossible odds (early setup)
+- Unexpected mercy/cruelty (twist)
+- Legacy impact (reveal)
+
+**Visual Power Words:**
+Use sensory, cinematic language:
+- Physical: blood, fire, walls, chains, crown, sword
+- Action: fell, burned, crowned, executed, disappeared, charged
+- Spatial: deep, outside, beneath, across, hidden, behind
+
+## HOOK FORMULA
+
+Start every script with a powerful hook:
+- Use generic descriptors: "this man," "this girl," "this soldier," "this city"
+- Include brief time/place context
+- Focus on ONE powerful trait or action
+- End hook with dramatic, unexpected consequence
+
+## OUTPUT REQUIREMENTS
+
+**ONLY output the script text. Nothing else.**
+- No titles
+- No hook variations
+- No timing markers
+- No section labels
+- No production instructions
+- No metadata
+
+Just the clean script with:
+- One sentence per line
+- Natural line breaks for pacing
+- Proper punctuation for TTS
+- Each paragraph becomes a separate scene`;
+
+function getDurationGuide(duration: string): string {
+  switch (duration) {
+    case "30s":
+      return `30-SECOND FORMAT (28-32 seconds when spoken):
+- Hook: 5 seconds (1-2 sentences)
+- Context + Twist: 15 seconds (4-5 sentences)
+- Reveal: 5-8 seconds (1-2 sentences)
+- Total: 6-9 sentences maximum`;
+    case "1min":
+      return `60-SECOND FORMAT (55-65 seconds when spoken):
+- Hook/Context: 8-10 seconds (2-3 sentences)
+- Small Twist: 6-8 seconds (2 sentences)
+- Plot Twist: 8-10 seconds (2-3 sentences)
+- Response: 6-8 seconds (2 sentences)
+- Tension Build: 4-6 seconds (1-2 sentences)
+- Consequence: 6-8 seconds (2 sentences)
+- Reveal: 4-6 seconds (1-2 sentences)
+- Total: 12-17 sentences`;
+    case "2min":
+      return `2-MINUTE FORMAT (110-130 seconds when spoken):
+- Hook: 8-10 seconds (2-3 sentences)
+- Context Setup: 20-25 seconds (5-7 sentences)
+- First Twist: 15-20 seconds (4-5 sentences)
+- Development: 20-25 seconds (5-7 sentences)
+- Climax: 15-20 seconds (4-5 sentences)
+- Resolution/Reveal: 10-15 seconds (3-4 sentences)
+- Total: 23-31 sentences`;
+    case "10min":
+      return `10-MINUTE FORMAT (9-11 minutes when spoken):
+- Hook: 15-20 seconds (4-5 sentences)
+- Introduction: 60-90 seconds (15-20 sentences)
+- Act 1 - Setup: 2-3 minutes (40-50 sentences)
+- Act 2 - Conflict/Development: 3-4 minutes (50-60 sentences)
+- Act 3 - Climax: 2-3 minutes (40-50 sentences)
+- Resolution/Reveal: 60-90 seconds (15-20 sentences)
+- Total: 160-200 sentences, detailed storytelling with multiple twists`;
+    default:
+      return `60-SECOND FORMAT: 12-17 sentences total`;
+  }
+}
+
 export async function generateScript(options: GenerateScriptOptions): Promise<GeneratedScript> {
-  const { topic, style = "educational", duration = "medium", userId } = options;
+  const { topic, style = "documentary", duration = "1min", userId } = options;
 
-  const durationGuide = {
-    short: "3-5 sentences, about 1-2 minutes when spoken",
-    medium: "8-12 sentences, about 3-5 minutes when spoken",
-    long: "15-25 sentences, about 5-10 minutes when spoken",
-  };
+  const durationGuide = getDurationGuide(duration);
 
-  const styleGuide = {
-    educational: "informative and clear, explaining concepts step by step",
-    entertaining: "engaging and fun, with humor and energy",
-    documentary: "serious and factual, with a professional tone",
-    storytelling: "narrative and immersive, telling a compelling story",
-  };
+  const prompt = `${VIRAL_SCRIPT_PROMPT}
 
-  const prompt = `You are a professional video script writer. Create a script for a faceless YouTube video about: "${topic}"
+## YOUR TASK
 
-Style: ${styleGuide[style]}
-Length: ${durationGuide[duration]}
+Create a script about: "${topic}"
 
-Requirements:
-1. Write in a natural, conversational tone suitable for text-to-speech
-2. Each paragraph will become a separate scene with its own image
-3. Keep paragraphs concise (15-30 words each) for better pacing
-4. Start with a hook to grab attention
-5. End with a clear conclusion or call to action
-6. Avoid special characters, abbreviations, or anything that might confuse TTS
-7. Do NOT include scene numbers, timestamps, or stage directions
+Duration: ${durationGuide}
 
-Return your response as JSON with this exact structure:
+Style: ${style === "documentary" ? "Cold, factual documentary narrator" : style === "storytelling" ? "Narrative and immersive" : style === "entertaining" ? "Engaging with energy" : "Informative and clear"}
+
+**REMEMBER: Output ONLY the script. No titles, no labels, no explanations. Just the clean script text with one sentence per line.**
+
+Return your response as JSON:
 {
-  "title": "Video Title",
-  "script": "Full script with paragraphs separated by double newlines",
-  "scenes": ["Scene 1 text", "Scene 2 text", ...]
+  "script": "The full script with each sentence on its own line",
+  "scenes": ["Scene 1 paragraph", "Scene 2 paragraph", ...]
 }`;
 
   try {
@@ -72,10 +174,13 @@ Return your response as JSON with this exact structure:
     const text = response.text || "";
     const parsed = JSON.parse(text);
 
+    const script = parsed.script || parsed.scenes?.join("\n\n") || "";
+    const scenes = parsed.scenes || script.split(/\n\n+/).filter((s: string) => s.trim()) || [];
+
     return {
-      title: parsed.title || `Video about ${topic}`,
-      script: parsed.script || parsed.scenes?.join("\n\n") || "",
-      scenes: parsed.scenes || parsed.script?.split(/\n\n+/).filter((s: string) => s.trim()) || [],
+      title: `Video about ${topic}`,
+      script,
+      scenes,
     };
   } catch (error: any) {
     console.error("Gemini script generation error:", error);

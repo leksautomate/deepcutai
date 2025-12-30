@@ -157,11 +157,15 @@ export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export type ApiKey = typeof apiKeys.$inferSelect;
 
+// Script duration options
+export const scriptDurations = ["30s", "1min", "2min", "10min"] as const;
+export type ScriptDuration = typeof scriptDurations[number];
+
 // API request/response types
 export const generateScriptRequestSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
   style: z.enum(["educational", "entertaining", "documentary", "storytelling"]).optional(),
-  duration: z.enum(["short", "medium", "long"]).optional(),
+  duration: z.enum(["30s", "1min", "2min", "10min"]).optional(),
 });
 
 export type GenerateScriptRequest = z.infer<typeof generateScriptRequestSchema>;
