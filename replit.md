@@ -22,6 +22,12 @@ The backend is a Node.js Express application written in TypeScript (ESM modules)
 - **API Key Management**: Centralized system for storing and managing API keys for various services, configurable via the Settings page or environment variables.
 - **Video Encoding**: Uses CRF 18, medium preset, high profile (level 4.2), AAC audio, and configurable transitions.
 
+### Audio-Video Synchronization (Critical)
+- **Audio duration = Image display time**: Each scene's image displays for exactly as long as its audio narration lasts.
+- **No audio cutoff**: The system uses ffprobe to detect the exact audio duration, then adds a 0.1s buffer to ensure complete playback.
+- **No overlapping**: Each segment's text/voiceover completes fully before the next scene begins.
+- **Implementation**: `server/services/ffmpeg.ts` - `getAudioDuration()` function probes audio files, `createSceneVideo()` uses audio duration as the video duration.
+
 ### System Design Choices
 - **Shared Types**: Drizzle schema definitions and other types are shared between client and server for consistency.
 - **Multi-Provider Pattern**: Abstracted interfaces allow for easy integration of multiple TTS and image generation providers.
