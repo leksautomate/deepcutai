@@ -1,0 +1,26 @@
+{
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "scenes": [
+    {
+      "id": "scene-1",
+      "text": "This army swept the known world, undefeated. In 1260 AD, the Mongol horde faced Egypt's Mamluks. These soldiers, once slaves, now defended their land. The Mamluks feigned retreat in Ain Jalut's valley. This trapped the Mongols in a brutal ambush. Arrows and cavalry charged from hidden flanks. The unstoppable horde met its match.",
+      "audioFile": "/assets/8e708cd1-27a0-46ee-9c51-098d0b967c9f/scene-1.mp3",
+      "imageFile": "/assets/8e708cd1-27a0-46ee-9c51-098d0b967c9f/scene-1.png",
+      "durationInSeconds": 19.135,
+      "motion": "zoom-in",
+      "transition": "fade"
+    },
+    {
+      "id": "scene-2",
+      "text": "This decisive defeat saved the Middle East.",
+      "audioFile": "/assets/8e708cd1-27a0-46ee-9c51-098d0b967c9f/scene-2.mp3",
+      "imageFile": "/assets/8e708cd1-27a0-46ee-9c51-098d0b967c9f/scene-2.png",
+      "durationInSeconds": 2.047,
+      "motion": "zoom-out",
+      "transition": "fade"
+    }
+  ],
+  "transitionDuration": 0.5
+}

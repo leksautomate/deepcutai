@@ -257,8 +257,34 @@ print_status "Installing PM2 process manager..."
 sudo npm install -g pm2
 print_success "PM2 installed"
 
-# Create PM2 ecosystem file
-cat > "$APP_DIR/ecosystem.config.cjs" << 'EOF'
+# Create PM2 ecosystem file that loads .env
+cat > "$APP_DIR/ecosystem.config.cjs" << 'PMEOF'
+const fs = require('fs');
+const path = require('path');
+
+// Load .env file and parse into object
+function loadEnv() {
+  const envPath = path.join(__dirname, '.env');
+  const env = {
+    NODE_ENV: 'production',
+    PORT: 5000
+  };
+  
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf8');
+    content.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const [key, ...valueParts] = trimmed.split('=');
+        if (key && valueParts.length > 0) {
+          env[key.trim()] = valueParts.join('=').trim();
+        }
+      }
+    });
+  }
+  return env;
+}
+
 module.exports = {
   apps: [{
     name: 'deepcut-ai',
@@ -266,10 +292,7 @@ module.exports = {
     cwd: '/var/www/deepcut-ai',
     instances: 1,
     exec_mode: 'fork',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 5000
-    },
+    env: loadEnv(),
     error_file: '/var/log/pm2/deepcut-error.log',
     out_file: '/var/log/pm2/deepcut-out.log',
     log_date_format: 'YYYY-MM-DD HH:mm:ss',
@@ -278,7 +301,7 @@ module.exports = {
     watch: false
   }]
 };
-EOF
+PMEOF
 
 # Create log directory
 sudo mkdir -p /var/log/pm2
