@@ -35,6 +35,8 @@ interface TransitionSettings {
   transitionDuration: number;
 }
 
+type ScriptProvider = "gemini" | "groq";
+
 interface AppSettings {
   customVoices: CustomVoice[];
   sceneSettings: {
@@ -45,6 +47,7 @@ interface AppSettings {
   };
   imageStyleSettings: ImageStyleSettings;
   transitionSettings: TransitionSettings;
+  scriptProvider: ScriptProvider;
 }
 
 const defaultSettings: AppSettings = {
@@ -65,6 +68,7 @@ const defaultSettings: AppSettings = {
     defaultTransition: "fade",
     transitionDuration: 0.5,
   },
+  scriptProvider: "gemini",
 };
 
 export default function SettingsPage() {
@@ -356,6 +360,34 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <StatusIcon connected={apiStatus?.runpod} />
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Script Generation Provider</h4>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Choose which AI to use for generating video scripts. If the primary fails, it will automatically try the other.
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <Select 
+                        value={settings.scriptProvider || "gemini"} 
+                        onValueChange={(v) => setSettings(prev => ({ ...prev, scriptProvider: v as ScriptProvider }))}
+                      >
+                        <SelectTrigger className="w-[200px]" data-testid="select-script-provider">
+                          <SelectValue placeholder="Select provider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gemini">Gemini AI (Primary)</SelectItem>
+                          <SelectItem value="groq">Groq AI (Primary)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Badge variant="outline">
+                        Fallback: {settings.scriptProvider === "groq" ? "Gemini" : "Groq"}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
 

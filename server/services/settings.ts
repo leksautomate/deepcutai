@@ -18,6 +18,7 @@ interface TransitionSettings {
 }
 
 type TTSProvider = "speechify" | "inworld";
+export type ScriptProvider = "gemini" | "groq";
 
 export interface CustomVoice {
   id: string;
@@ -31,6 +32,7 @@ export interface AppSettings {
   sceneSettings: SceneSettings;
   imageStyleSettings: ImageStyleSettings;
   transitionSettings: TransitionSettings;
+  scriptProvider: ScriptProvider;
 }
 
 let appSettings: AppSettings = {
@@ -54,6 +56,7 @@ let appSettings: AppSettings = {
     defaultTransition: "fade",
     transitionDuration: 0.5,
   },
+  scriptProvider: "gemini",
 };
 
 export function getAppSettings(): AppSettings {
@@ -65,6 +68,7 @@ export function updateAppSettings(updates: Partial<AppSettings>): void {
   if (updates.sceneSettings) appSettings.sceneSettings = { ...appSettings.sceneSettings, ...updates.sceneSettings };
   if (updates.imageStyleSettings) appSettings.imageStyleSettings = { ...appSettings.imageStyleSettings, ...updates.imageStyleSettings };
   if (updates.transitionSettings) appSettings.transitionSettings = { ...appSettings.transitionSettings, ...updates.transitionSettings };
+  if (updates.scriptProvider) appSettings.scriptProvider = updates.scriptProvider;
 }
 
 export function splitScriptIntoScenes(script: string, settings?: SceneSettings): string[] {

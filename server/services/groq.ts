@@ -1,9 +1,24 @@
+import { getResolvedApiKey } from "./api-keys";
+
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 export interface ImagePromptOptions {
   sceneText: string;
   imageStyle?: string;
   customStyle?: HistoricalStyle;
+}
+
+export interface GroqScriptOptions {
+  topic: string;
+  style?: "educational" | "entertaining" | "documentary" | "storytelling";
+  duration?: "short" | "medium" | "long";
+  userId?: string;
+}
+
+export interface GroqGeneratedScript {
+  title: string;
+  script: string;
+  scenes: string[];
 }
 
 export interface HistoricalStyle {
@@ -118,3 +133,97 @@ function generateFallbackPrompt(sceneText: string, imageStyle: string): string {
 }
 
 export { DEFAULT_HISTORICAL_STYLE };
+
+export async function generateScriptWithGroq(options: GroqScriptOptions): Promise<GroqGeneratedScript> {
+  const { topic, style = "educational", duration = "medium", userId } = options;
+  
+  const apiKey = await getResolvedApiKey("groq", userId);
+  if (!apiKey) {
+    throw new Error("Groq API key not configured. Please add it in Settings.");
+  }
+
+  const durationGuide = {
+    short: "3-5 sentences, about 1-2 minutes when spoken",
+    medium: "8-12 sentences, about 3-5 minutes when spoken",
+    long: "15-25 sentences, about 5-10 minutes when spoken",
+  };
+
+  const styleGuide = {
+    educational: "informative and clear, explaining concepts step by step",
+    entertaining: "engaging and fun, with humor and energy",
+    documentary: "serious and factual, with a professional tone",
+    storytelling: "narrative and immersive, telling a compelling story",
+  };
+
+  const systemPrompt = `You are a professional video script writer. You create engaging, natural-sounding scripts for faceless YouTube videos.
+
+Requirements:
+1. Write in a natural, conversational tone suitable for text-to-speech
+2. Each paragraph will become a separate scene with its own image
+3. Keep paragraphs concise (15-30 words each) for better pacing
+4. Start with a hook to grab attention
+5. End with a clear conclusion or call to action
+6. Avoid special characters, abbreviations, or anything that might confuse TTS
+7. Do NOT include scene numbers, timestamps, or stage directions
+
+You MUST respond with valid JSON only.`;
+
+  const userPrompt = `Create a script for a faceless YouTube video about: "${topic}"
+
+Style: ${styleGuide[style]}
+Length: ${durationGuide[duration]}
+
+Return your response as JSON with this exact structure:
+{
+  "title": "Video Title",
+  "script": "Full script with paragraphs separated by double newlines",
+  "scenes": ["Scene 1 text", "Scene 2 text", ...]
+}`;
+
+  try {
+    const response = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 4000,
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Groq script API error:", response.status, errorText);
+      throw new Error("Groq API request failed");
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error("No content in Groq response");
+    }
+
+    const parsed = JSON.parse(content);
+
+    return {
+      title: parsed.title || `Video about ${topic}`,
+      script: parsed.script || parsed.scenes?.join("\n\n") || "",
+      scenes: parsed.scenes || parsed.script?.split(/\n\n+/).filter((s: string) => s.trim()) || [],
+    };
+  } catch (error: any) {
+    console.error("Groq script generation error:", error);
+    if (error.message?.includes("API key not configured")) {
+      throw error;
+    }
+    throw new Error("Failed to generate script with Groq");
+  }
+}

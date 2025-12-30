@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { generateScript } from "./services/gemini";
-import { generateImagePromptWithGroq } from "./services/groq";
+import { generateImagePromptWithGroq, generateScriptWithGroq } from "./services/groq";
 import { generateTTS } from "./services/speechify";
 import { generateImageWithSeestream } from "./services/freepik";
 import type { generationProgressSchema } from "@shared/schema";
@@ -41,6 +41,7 @@ const settingsUpdateSchema = z.object({
     defaultTransition: z.string(),
     transitionDuration: z.number().min(0.1).max(2),
   }).optional(),
+  scriptProvider: z.enum(["gemini", "groq"]).optional(),
 });
 import { randomUUID } from "crypto";
 import * as path from "path";
@@ -72,8 +73,8 @@ export async function registerRoutes(
         });
       }
       
-      const { customVoices, sceneSettings, imageStyleSettings, transitionSettings } = result.data;
-      updateAppSettings({ customVoices, sceneSettings, imageStyleSettings, transitionSettings });
+      const { customVoices, sceneSettings, imageStyleSettings, transitionSettings, scriptProvider } = result.data;
+      updateAppSettings({ customVoices, sceneSettings, imageStyleSettings, transitionSettings, scriptProvider });
       res.json(getAppSettings());
     } catch (error) {
       console.error("Settings update error:", error);
@@ -339,12 +340,43 @@ export async function registerRoutes(
       }
 
       const userId = (req.user as any)?.id;
-      const result = await generateScript({ ...parsed.data, userId });
+      const settings = getAppSettings();
+      const primaryProvider = settings.scriptProvider || "gemini";
+      const fallbackProvider = primaryProvider === "gemini" ? "groq" : "gemini";
+      
+      let result;
+      let usedProvider = primaryProvider;
+      
+      try {
+        if (primaryProvider === "groq") {
+          result = await generateScriptWithGroq({ ...parsed.data, userId });
+        } else {
+          result = await generateScript({ ...parsed.data, userId });
+        }
+      } catch (primaryError: any) {
+        console.log(`Primary provider (${primaryProvider}) failed, trying fallback (${fallbackProvider})...`);
+        
+        try {
+          if (fallbackProvider === "groq") {
+            result = await generateScriptWithGroq({ ...parsed.data, userId });
+          } else {
+            result = await generateScript({ ...parsed.data, userId });
+          }
+          usedProvider = fallbackProvider;
+        } catch (fallbackError: any) {
+          console.error("Both providers failed:", { primary: primaryError.message, fallback: fallbackError.message });
+          const message = primaryError.message?.includes("API key not configured") 
+            ? `${primaryProvider === "gemini" ? "Gemini" : "Groq"} API key not configured. Please add it in Settings or configure ${fallbackProvider === "gemini" ? "Gemini" : "Groq"} as a fallback.`
+            : "Failed to generate script. Please check your API keys in Settings.";
+          return res.status(500).json({ error: message });
+        }
+      }
       
       res.json({
         title: result.title,
         script: result.script,
         scenes: result.scenes,
+        provider: usedProvider,
       });
     } catch (error: any) {
       console.error("Script generation error:", error);

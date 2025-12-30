@@ -17,6 +17,7 @@ The frontend is built with React 18 and TypeScript, utilizing Wouter for routing
 The backend is a Node.js Express application written in TypeScript (ESM modules), providing RESTful JSON endpoints. It uses esbuild for production bundling. Data persistence is managed with Drizzle ORM for PostgreSQL, with schema definitions shared between frontend and backend via the `shared/` directory. Zod schemas are used for validation. Authentication is single-user mode via Passport.js Local Strategy with session-based authentication and secure password hashing (Scrypt).
 
 ### Feature Specifications
+- **Multi-Provider Script Generation**: Supports Gemini AI and Groq AI for script writing, with automatic fallback if the primary provider fails. Configurable in Settings.
 - **Multi-Provider TTS**: Supports Speechify and Inworld, with options for custom voices.
 - **Multi-Provider Image Generation**: Integrates Seedream (Freepik AI), WaveSpeed, and RunPod, allowing per-project provider selection and configurable resolutions (16:9 aspect ratio).
 - **API Key Management**: Centralized system for storing and managing API keys for various services, configurable via the Settings page or environment variables.
