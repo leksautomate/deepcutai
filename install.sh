@@ -257,8 +257,25 @@ print_status "Installing PM2 process manager..."
 sudo npm install -g pm2
 print_success "PM2 installed"
 
-# Create PM2 ecosystem file that loads .env
-cat > "$APP_DIR/ecosystem.config.cjs" << 'PMEOF'
+# Ask about auto-loading environment variables
+echo ""
+echo -e "${YELLOW}=== PM2 Environment Configuration ===${NC}"
+echo ""
+echo "PM2 needs environment variables (DATABASE_URL, admin credentials, API keys, etc.)"
+echo ""
+echo "Options:"
+echo "  [Y] AUTO-LOAD from .env file (recommended - keeps secrets in one place)"
+echo "  [N] MANUAL mode (you must export variables before starting PM2)"
+echo ""
+read -p "Enable auto-load environment variables from .env? [Y/n]: " AUTO_LOAD_ENV
+
+AUTO_LOAD_ENV=${AUTO_LOAD_ENV:-Y}
+
+if [[ "$AUTO_LOAD_ENV" =~ ^[Yy]$ ]]; then
+    print_status "Creating PM2 config with auto-load from .env..."
+    
+    # Create PM2 ecosystem file that loads .env
+    cat > "$APP_DIR/ecosystem.config.cjs" << 'PMEOF'
 const fs = require('fs');
 const path = require('path');
 
@@ -302,6 +319,39 @@ module.exports = {
   }]
 };
 PMEOF
+    print_success "Auto-load enabled - PM2 will read from .env file"
+else
+    print_status "Creating PM2 config without auto-load..."
+    
+    # Create basic PM2 ecosystem file (manual mode)
+    cat > "$APP_DIR/ecosystem.config.cjs" << 'PMEOF'
+module.exports = {
+  apps: [{
+    name: 'deepcut-ai',
+    script: './dist/index.cjs',
+    cwd: '/var/www/deepcut-ai',
+    instances: 1,
+    exec_mode: 'fork',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 5000
+    },
+    error_file: '/var/log/pm2/deepcut-error.log',
+    out_file: '/var/log/pm2/deepcut-out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    max_memory_restart: '1G',
+    autorestart: true,
+    watch: false
+  }]
+};
+PMEOF
+    print_warning "Manual mode - You must source .env before starting PM2:"
+    echo ""
+    echo "  cd $APP_DIR"
+    echo "  export \$(cat .env | grep -v '^#' | xargs)"
+    echo "  pm2 start ecosystem.config.cjs"
+    echo ""
+fi
 
 # Create log directory
 sudo mkdir -p /var/log/pm2
