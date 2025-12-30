@@ -62,14 +62,9 @@ export function setupAuth(app: Express) {
   });
 
   // Cookie secure setting:
-  // - In production: secure by default (requires HTTPS)
-  // - Set COOKIE_SECURE=false to disable (for HTTP-only setups)
-  const isProduction = process.env.NODE_ENV === "production";
-  const cookieSecure = process.env.COOKIE_SECURE === "false" ? false : isProduction;
-  
-  if (isProduction && !cookieSecure) {
-    console.warn("[AUTH] Warning: Running in production with insecure cookies (HTTP mode)");
-  }
+  // - Default: false (works with HTTP)
+  // - Set COOKIE_SECURE=true to enable (requires HTTPS/SSL)
+  const cookieSecure = process.env.COOKIE_SECURE === "true";
 
   const sessionSettings: session.SessionOptions = {
     secret: sessionSecret,

@@ -219,7 +219,7 @@ ADMIN_PASSWORD=${ADMIN_PASSWORD}
 # COOKIE SETTINGS
 # ===========================================
 # Set to 'false' if not using HTTPS (not recommended for production)
-# COOKIE_SECURE=false
+# COOKIE_SECURE=true  # Uncomment to enable secure cookies (requires HTTPS)
 
 # ===========================================
 # API KEYS (optional - configure via Settings page after login)
@@ -241,6 +241,13 @@ print_success "Environment file created"
 # ==========================================
 print_status "Building application..."
 npm run build
+
+# Copy table.sql for connect-pg-simple session store
+if [ -f "$APP_DIR/node_modules/connect-pg-simple/table.sql" ]; then
+    cp "$APP_DIR/node_modules/connect-pg-simple/table.sql" "$APP_DIR/dist/table.sql"
+    print_success "Session table SQL copied"
+fi
+
 print_success "Build complete"
 
 # ==========================================
@@ -446,8 +453,8 @@ echo -e "${BLUE}To setup SSL (recommended):${NC}"
 echo "  sudo apt install certbot python3-certbot-nginx -y"
 echo "  sudo certbot --nginx -d ${DOMAIN_NAME}"
 echo ""
-echo -e "${BLUE}If you can't use SSL, add this to .env:${NC}"
-echo "  COOKIE_SECURE=false"
+echo -e "${BLUE}If you set up HTTPS/SSL, add this to .env:${NC}"
+echo "  COOKIE_SECURE=true"
 echo "  Then restart: pm2 restart deepcut-ai"
 echo ""
 echo -e "${BLUE}Configure API keys:${NC}"

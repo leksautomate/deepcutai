@@ -155,8 +155,8 @@ The app runs on `http://localhost:5000`
 
 # VPS Deployment Guide (Ubuntu/Debian)
 
-> **IMPORTANT**: This app requires HTTPS for login to work! Sessions use secure cookies.
-> Complete ALL steps including SSL setup before trying to log in.
+> **Note**: HTTPS is recommended for production. If using HTTPS, set `COOKIE_SECURE=true` in your .env file.
+> The app works with HTTP by default for easier testing.
 
 ## Quick Start Checklist
 1. [ ] Install Node.js 20+, PostgreSQL, FFmpeg
@@ -640,19 +640,17 @@ sudo tail -f /var/log/nginx/error.log
 | `FREEPIK_API_KEY` | No* | For Seedream/Freepik images |
 | `WAVESPEED_API_KEY` | No* | For WaveSpeed images |
 | `RUNPOD_API_KEY` | No* | For RunPod images |
-| `COOKIE_SECURE` | No | Set to `false` if not using HTTPS |
+| `COOKIE_SECURE` | No | Set to `true` to enable secure cookies (requires HTTPS) |
 
 *Can be set via Settings page after login instead of environment variables.
 
-### If You Can't Use HTTPS
+### Enabling HTTPS/SSL
 
-If you're testing without SSL or can't set up HTTPS, add this to your .env file:
+If you set up HTTPS (recommended for production), add this to your .env file:
 ```
-COOKIE_SECURE=false
+COOKIE_SECURE=true
 ```
 Then restart: `pm2 restart deepcut-ai`
-
-**Warning:** This is less secure and not recommended for production.
 
 ---
 
