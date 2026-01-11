@@ -1,28 +1,39 @@
 const fs = require('fs');
 const path = require('path');
 
+const APP_DIR = '/var/www/deepcut-ai';
+
 function loadEnv() {
-  const envPath = path.join(__dirname, '.env');
+  const envPaths = [
+    path.join(APP_DIR, '.env'),
+    path.join(__dirname, '.env'),
+  ];
+  
   const env = {
     NODE_ENV: 'production',
     PORT: '5000',
     COOKIE_SECURE: 'false',
   };
 
-  if (fs.existsSync(envPath)) {
-    const content = fs.readFileSync(envPath, 'utf8');
-    content.split('\n').forEach(line => {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith('#')) {
-        const eqIndex = trimmed.indexOf('=');
-        if (eqIndex > 0) {
-          const key = trimmed.substring(0, eqIndex).trim();
-          const value = trimmed.substring(eqIndex + 1).trim();
-          env[key] = value;
+  for (const envPath of envPaths) {
+    if (fs.existsSync(envPath)) {
+      console.log(`[PM2] Loading environment from: ${envPath}`);
+      const content = fs.readFileSync(envPath, 'utf8');
+      content.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+          const eqIndex = trimmed.indexOf('=');
+          if (eqIndex > 0) {
+            const key = trimmed.substring(0, eqIndex).trim();
+            const value = trimmed.substring(eqIndex + 1).trim();
+            env[key] = value;
+          }
         }
-      }
-    });
+      });
+      break;
+    }
   }
+  
   return env;
 }
 
