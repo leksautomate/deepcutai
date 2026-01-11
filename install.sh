@@ -118,7 +118,9 @@ DB_PASSWORD=$(openssl rand -hex 16)
 
 # Check if user exists
 if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='deepcut'" | grep -q 1; then
-    print_warning "Database user 'deepcut' already exists"
+    print_warning "Database user 'deepcut' already exists, updating password..."
+    sudo -u postgres psql -c "ALTER USER deepcut WITH PASSWORD '$DB_PASSWORD';"
+    print_success "Database user password updated"
 else
     sudo -u postgres psql -c "CREATE USER deepcut WITH PASSWORD '$DB_PASSWORD';"
     print_success "Database user created"
