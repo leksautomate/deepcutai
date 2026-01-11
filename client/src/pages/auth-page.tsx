@@ -15,7 +15,7 @@ export default function AuthPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  const { data: setupStatus, isLoading: setupLoading } = useQuery({
+  const { data: setupStatus, isLoading: setupLoading } = useQuery<{ needsSetup: boolean }>({
     queryKey: ["/api/setup/status"],
   });
 

@@ -1306,7 +1306,7 @@ export async function registerRoutes(
       // Generate image prompt using Groq
       let imagePrompt: string;
       try {
-        imagePrompt = await generateImagePromptWithGroq(text, imageStyle);
+        imagePrompt = await generateImagePromptWithGroq({ sceneText: text, imageStyle });
       } catch (error) {
         // Fallback to simple prompt
         imagePrompt = `${imageStyle} style: ${text}`;
