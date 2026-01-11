@@ -12,6 +12,7 @@ function loadEnv() {
   const env = {
     NODE_ENV: 'production',
     PORT: '5000',
+    HOST: '0.0.0.0',
     COOKIE_SECURE: 'false',
   };
 
