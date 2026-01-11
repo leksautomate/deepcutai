@@ -15,7 +15,7 @@ declare global {
 
 const scryptAsync = promisify(scrypt);
 
-async function hashPassword(password: string) {
+export async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
   const buf = (await scryptAsync(password, salt, 64)) as Buffer;
   return `${buf.toString("hex")}.${salt}`;
@@ -28,35 +28,27 @@ async function comparePasswords(supplied: string, stored: string) {
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
-async function ensureAdminUserExists() {
+async function checkAndCreateEnvAdmin() {
   const adminUsername = process.env.ADMIN_USERNAME;
   const adminPassword = process.env.ADMIN_PASSWORD;
   
   if (!adminUsername || !adminPassword) {
-    console.warn("[AUTH] Warning: ADMIN_USERNAME and ADMIN_PASSWORD not set. No admin user will be created.");
-    console.warn("[AUTH] Set these environment variables to enable login.");
     return;
   }
   
-  const existingAdmin = await storage.getUserByUsername(adminUsername);
-  if (!existingAdmin) {
-    const hashedPassword = await hashPassword(adminPassword);
-    await storage.createUser({
-      username: adminUsername,
-      password: hashedPassword,
-    });
-    console.log("[AUTH] Admin user created");
-  } else {
-    // Check if password matches, update if changed
-    const passwordMatches = await comparePasswords(adminPassword, existingAdmin.password);
-    if (!passwordMatches) {
-      const hashedPassword = await hashPassword(adminPassword);
-      await storage.updateUserPassword(existingAdmin.id, hashedPassword);
-      console.log("[AUTH] Admin password updated from .env");
-    } else {
-      console.log("[AUTH] Admin user verified");
-    }
+  const userCount = await storage.getUserCount();
+  if (userCount > 0) {
+    console.log("[AUTH] Users exist, skipping env admin creation");
+    return;
   }
+  
+  const hashedPassword = await hashPassword(adminPassword);
+  await storage.createUser({
+    username: adminUsername,
+    email: process.env.ADMIN_EMAIL || null,
+    password: hashedPassword,
+  });
+  console.log("[AUTH] Admin user created from environment variables");
 }
 
 export function setupAuth(app: Express) {
@@ -65,8 +57,8 @@ export function setupAuth(app: Express) {
     throw new Error("SESSION_SECRET environment variable is required");
   }
 
-  ensureAdminUserExists().catch((err) => {
-    console.error("[AUTH] Failed to create admin user:", err.message);
+  checkAndCreateEnvAdmin().catch((err) => {
+    console.error("[AUTH] Failed to check/create admin user:", err.message);
   });
 
   // Cookie secure setting:

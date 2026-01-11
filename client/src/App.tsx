@@ -15,6 +15,7 @@ import Dashboard from "@/pages/dashboard";
 import MyVideos from "@/pages/my-videos";
 import ProjectEditor from "@/pages/project-editor";
 import AuthPage from "@/pages/auth-page";
+import SetupPage from "@/pages/setup-page";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import ImageGenerator from "@/pages/image-generator";
 import ApiSettings from "@/pages/api-settings";
@@ -136,6 +137,10 @@ function AppRoutes() {
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
       </div>
     );
+  }
+
+  if (location === "/setup") {
+    return <SetupPage />;
   }
 
   if (location === "/auth") {

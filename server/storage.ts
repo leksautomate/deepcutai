@@ -12,6 +12,7 @@ const MemoryStore = createMemoryStore(session);
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserCount(): Promise<number>;
   createUser(user: InsertUser): Promise<User>;
   updateUserPassword(id: string, hashedPassword: string): Promise<void>;
   
@@ -69,6 +70,11 @@ export class DatabaseStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.username, username));
     return result[0];
+  }
+
+  async getUserCount(): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)::int` }).from(users);
+    return result[0]?.count || 0;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -266,9 +272,20 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getUserCount(): Promise<number> {
+    return this.users.size;
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
+    const user: User = { 
+      id,
+      username: insertUser.username,
+      email: insertUser.email || null,
+      password: insertUser.password,
+      isAdmin: 0,
+      createdAt: new Date(),
+    };
     this.users.set(id, user);
     return user;
   }

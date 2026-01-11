@@ -202,25 +202,6 @@ esac
 
 print_success "Application will run on port $APP_PORT"
 
-# Get admin credentials
-echo ""
-echo -e "${YELLOW}=== Admin Account Setup ===${NC}"
-echo "These credentials will be used to log into the web interface."
-echo ""
-
-read -p "Enter admin username [admin]: " ADMIN_USERNAME
-ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-
-while true; do
-    read -s -p "Enter admin password (min 8 characters): " ADMIN_PASSWORD
-    echo
-    if [ ${#ADMIN_PASSWORD} -ge 8 ]; then
-        break
-    else
-        print_error "Password must be at least 8 characters"
-    fi
-done
-
 # Create .env file
 cat > "$APP_DIR/.env" << EOF
 # DeepCut AI Environment Configuration
@@ -239,11 +220,9 @@ HOST=0.0.0.0
 DATABASE_URL=postgresql://deepcut:${DB_PASSWORD}@localhost:5432/deepcut
 
 # ===========================================
-# AUTHENTICATION (required)
+# AUTHENTICATION (auto-generated session secret)
 # ===========================================
 SESSION_SECRET=${SESSION_SECRET}
-ADMIN_USERNAME=${ADMIN_USERNAME}
-ADMIN_PASSWORD=${ADMIN_PASSWORD}
 
 # ===========================================
 # COOKIE SETTINGS
@@ -491,9 +470,11 @@ echo ""
 echo -e "  ${GREEN}Direct access:${NC}  http://${SERVER_IP}:${APP_PORT}"
 echo -e "  ${GREEN}Via Nginx:${NC}      http://${DOMAIN_NAME}"
 echo ""
-echo -e "${BLUE}Admin Username:${NC} ${ADMIN_USERNAME}"
-echo -e "${BLUE}Admin Password:${NC} (the password you entered)"
 echo -e "${BLUE}Port:${NC} ${APP_PORT}"
+echo ""
+echo -e "${YELLOW}FIRST-TIME SETUP:${NC}"
+echo "  On first visit, you'll be prompted to create an admin account."
+echo "  This is a one-time registration - no credentials in install script!"
 echo ""
 echo -e "${YELLOW}IMPORTANT: For login to work properly, you need HTTPS!${NC}"
 echo ""
@@ -507,8 +488,8 @@ echo "  Then restart: pm2 restart deepcut-ai"
 echo ""
 echo -e "${BLUE}Configure API keys:${NC}"
 echo "  1. Open http://${SERVER_IP}:${APP_PORT} in your browser"
-echo "  2. Log in with your admin credentials"
-echo "  3. Click Settings (gear icon) -> Configure Keys"
+echo "  2. Create your admin account (first-time setup)"
+echo "  3. Log in and click Settings (gear icon) -> Configure Keys"
 echo ""
 echo -e "${BLUE}Useful commands:${NC}"
 echo "  pm2 logs deepcut-ai     # View logs"

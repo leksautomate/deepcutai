@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth } from "./auth";
+import { setupAuth, hashPassword } from "./auth";
 import { generateScript } from "./services/gemini";
+import { setupRegistrationSchema } from "@shared/schema";
 import { generateImagePromptWithGroq, generateScriptWithGroq } from "./services/groq";
 import { generateTTS } from "./services/speechify";
 import { generateImageWithSeestream } from "./services/freepik";
@@ -53,6 +54,68 @@ export async function registerRoutes(
 ): Promise<Server> {
   
   setupAuth(app);
+
+  // ==========================================
+  // SETUP ENDPOINTS (First-time registration)
+  // ==========================================
+  
+  app.get("/api/setup/status", async (req, res) => {
+    try {
+      const userCount = await storage.getUserCount();
+      res.json({ 
+        needsSetup: userCount === 0,
+        message: userCount === 0 ? "No users found. Registration required." : "System is configured."
+      });
+    } catch (error) {
+      logError("SETUP", "Failed to check setup status", error);
+      res.status(500).json({ error: "Failed to check setup status" });
+    }
+  });
+
+  app.post("/api/setup/register", async (req, res) => {
+    try {
+      const userCount = await storage.getUserCount();
+      
+      if (userCount > 0) {
+        return res.status(403).json({ 
+          error: "Registration is disabled. An admin account already exists." 
+        });
+      }
+      
+      const validation = setupRegistrationSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: "Invalid input", 
+          details: validation.error.errors 
+        });
+      }
+      
+      const { username, email, password } = validation.data;
+      
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+      
+      const hashedPassword = await hashPassword(password);
+      const user = await storage.createUser({
+        username,
+        email,
+        password: hashedPassword,
+      });
+      
+      logInfo("SETUP", `Admin account created: ${username}`);
+      
+      res.json({ 
+        success: true, 
+        message: "Admin account created successfully. Please log in.",
+        user: { id: user.id, username: user.username }
+      });
+    } catch (error) {
+      logError("SETUP", "Failed to create admin account", error);
+      res.status(500).json({ error: "Failed to create admin account" });
+    }
+  });
   
   const assetsDir = path.join(process.cwd(), "public", "assets");
   if (!fs.existsSync(assetsDir)) {

@@ -19,7 +19,9 @@ The backend is a Node.js Express application written in TypeScript (ESM modules)
 ### Feature Specifications
 - **Multi-Provider Script Generation**: Supports Gemini AI and Groq AI for script writing, with automatic fallback if the primary provider fails. Configurable in Settings.
 - **Multi-Provider TTS**: Supports Speechify and Inworld, with options for custom voices.
-- **Multi-Provider Image Generation**: Integrates Seedream (Freepik AI), WaveSpeed, and RunPod, allowing per-project provider selection and configurable resolutions (16:9 aspect ratio).
+- **Multi-Provider Image Generation**: Integrates Seedream (Freepik AI), WaveSpeed, RunPod, and Pollinations (10 AI models), allowing per-project provider selection and configurable resolutions (16:9, 9:16, 1:1 aspect ratios).
+- **Pollinations Models**: flux, zimage, turbo, gptimage, gptimage-large, kontext, seedream, seedream-pro, nanobanana, nanobanana-pro
+- **Standalone Image Generator**: Dedicated page for generating images using any configured provider without creating a video project.
 - **API Key Management**: Centralized system for storing and managing API keys for various services, configurable via the Settings page or environment variables.
 - **Video Encoding**: Uses CRF 18, medium preset, high profile (level 4.2), AAC audio, and configurable transitions.
 
@@ -33,7 +35,9 @@ The backend is a Node.js Express application written in TypeScript (ESM modules)
 - **Shared Types**: Drizzle schema definitions and other types are shared between client and server for consistency.
 - **Multi-Provider Pattern**: Abstracted interfaces allow for easy integration of multiple TTS and image generation providers.
 - **Centralized Settings**: A dedicated service manages application settings, ensuring consistent behavior across different modules.
-- **Deployment**: Designed for deployment on platforms like Replit, with explicit instructions for environment variable configuration and API key management. The application automatically creates an admin account on first startup if credentials are provided.
+- **Deployment**: Designed for deployment on Ubuntu Linux VPS with one-click installation script or Replit.
+- **One-Time Registration**: On first visit to a fresh installation, users are prompted to create an admin account via a setup page. This is a one-time registration - subsequent visits require login. No admin credentials are needed in the install script.
+- **GitHub Repository**: https://github.com/leksautomate/deepcutai
 
 ## External Dependencies
 
