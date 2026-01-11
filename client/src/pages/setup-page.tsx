@@ -28,15 +28,16 @@ export default function SetupPage() {
       });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setSuccess(true);
-      queryClient.invalidateQueries({ queryKey: ["/api/setup/status"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/setup/status"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/setup/status"] });
       toast({
         title: "Account created!",
         description: "Your admin account has been created. Redirecting to login...",
       });
       setTimeout(() => {
-        setLocation("/auth");
+        window.location.href = "/auth";
       }, 2000);
     },
     onError: (error: Error) => {
@@ -76,10 +77,17 @@ export default function SetupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center p-8 bg-background">
         <Card className="w-full max-w-md text-center">
-          <CardContent className="pt-8 pb-8">
+          <CardContent className="pt-8 pb-8 space-y-4">
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold mb-2">Account Created!</h2>
             <p className="text-muted-foreground">Redirecting to login page...</p>
+            <Button 
+              onClick={() => window.location.href = "/auth"}
+              className="mt-4"
+              data-testid="button-go-to-login"
+            >
+              Go to Login
+            </Button>
           </CardContent>
         </Card>
       </div>
