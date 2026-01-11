@@ -74,6 +74,8 @@ export function AssetConfig({
   const [pollinationsModel, setPollinationsModel] = useState("flux");
   const [targetWords, setTargetWords] = useState(30);
   const [maxWords, setMaxWords] = useState(60);
+  const [minDuration, setMinDuration] = useState(3);
+  const [maxDuration, setMaxDuration] = useState(15);
 
   const { data: voicesData } = useQuery<VoicesResponse>({
     queryKey: ["/api/voices"],
@@ -112,6 +114,8 @@ export function AssetConfig({
         sceneSettings: {
           targetWords,
           maxWords,
+          minDuration,
+          maxDuration,
         },
       });
 
@@ -472,7 +476,7 @@ export function AssetConfig({
           <CardDescription>Control how the script is split into scenes</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <Label htmlFor="targetWords">Target Words per Scene</Label>
               <Input
@@ -486,7 +490,7 @@ export function AssetConfig({
                 disabled={generateMutation.isPending || backgroundMutation.isPending}
                 data-testid="input-target-words"
               />
-              <p className="text-xs text-muted-foreground mt-1">Aim for this many words per scene (min: 1)</p>
+              <p className="text-xs text-muted-foreground mt-1">Aim for this many words per scene</p>
             </div>
             <div>
               <Label htmlFor="maxWords">Maximum Words per Scene</Label>
@@ -501,7 +505,37 @@ export function AssetConfig({
                 disabled={generateMutation.isPending || backgroundMutation.isPending}
                 data-testid="input-max-words"
               />
-              <p className="text-xs text-muted-foreground mt-1">Hard limit per scene (min: 1)</p>
+              <p className="text-xs text-muted-foreground mt-1">Hard limit per scene</p>
+            </div>
+            <div>
+              <Label htmlFor="minDuration">Min Duration (sec)</Label>
+              <Input
+                id="minDuration"
+                type="number"
+                min={1}
+                max={60}
+                value={minDuration}
+                onChange={(e) => setMinDuration(Math.max(1, parseInt(e.target.value) || 1))}
+                className="mt-1.5"
+                disabled={generateMutation.isPending || backgroundMutation.isPending}
+                data-testid="input-min-duration"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Minimum scene duration</p>
+            </div>
+            <div>
+              <Label htmlFor="maxDuration">Max Duration (sec)</Label>
+              <Input
+                id="maxDuration"
+                type="number"
+                min={1}
+                max={120}
+                value={maxDuration}
+                onChange={(e) => setMaxDuration(Math.max(1, parseInt(e.target.value) || 1))}
+                className="mt-1.5"
+                disabled={generateMutation.isPending || backgroundMutation.isPending}
+                data-testid="input-max-duration"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Maximum scene duration</p>
             </div>
           </div>
         </CardContent>

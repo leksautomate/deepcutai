@@ -698,11 +698,19 @@ export async function registerRoutes(
 
   app.post("/api/render-video", async (req, res) => {
     try {
-      const { manifest, projectId } = req.body;
+      const { manifest, projectId, exportQuality } = req.body;
 
       if (!manifest || !manifest.scenes) {
         return res.status(400).json({ error: "Valid manifest is required" });
       }
+      
+      // Map export quality ID to actual settings
+      const qualitySettings: Record<string, { width: number; height: number; bitrate: string }> = {
+        "720p": { width: 1280, height: 720, bitrate: "4M" },
+        "1080p": { width: 1920, height: 1080, bitrate: "8M" },
+        "4k": { width: 3840, height: 2160, bitrate: "20M" },
+      };
+      const resolvedQuality = exportQuality && qualitySettings[exportQuality] ? qualitySettings[exportQuality] : undefined;
 
       const outputId = projectId || randomUUID().slice(0, 8);
       const outputFilename = `video-${outputId}.mp4`;
@@ -719,11 +727,12 @@ export async function registerRoutes(
         });
       }
 
-      logInfo("RENDER", "Starting video render with FFmpeg", { projectId: outputId, outputPath });
+      logInfo("RENDER", "Starting video render with FFmpeg", { projectId: outputId, outputPath, exportQuality });
       const renderResult = await renderVideo({
         manifest,
         outputPath,
         projectDir: outputDir,
+        exportQuality: resolvedQuality,
       });
 
       if (!renderResult.success) {
@@ -1238,6 +1247,144 @@ export async function registerRoutes(
     } catch (error) {
       logError("API", "Image generation failed", error);
       res.status(500).json({ error: `Image generation failed: ${error}` });
+    }
+  });
+
+  // Regenerate single scene image
+  app.post("/api/regenerate-scene-image", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { projectId, sceneId, sceneIndex, text, width, height } = req.body;
+
+      if (!projectId || !sceneId || sceneIndex === undefined || !text) {
+        return res.status(400).json({ error: "Missing required fields: projectId, sceneId, sceneIndex, text" });
+      }
+
+      const project = await storage.getVideoProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const manifest = project.manifest as VideoManifest | undefined;
+      if (!manifest || !manifest.scenes) {
+        return res.status(400).json({ error: "Project has no manifest or scenes" });
+      }
+
+      // Get image generator settings from project or defaults
+      const imageGenerator = (project as any).imageGenerator || "seedream";
+      const imageStyle = project.imageStyle || "cinematic";
+      const userId = req.user.id;
+
+      // Helper to get API key
+      const getResolvedApiKey = async (provider: string): Promise<string | null> => {
+        const providerAliases: Record<string, string[]> = {
+          seedream: ["seedream", "freepik"],
+          wavespeed: ["wavespeed"],
+          runpod: ["runpod"],
+          pollinations: ["pollinations"],
+        };
+        
+        const aliases = providerAliases[provider] || [provider];
+        for (const alias of aliases) {
+          const dbKey = await storage.getApiKey(req.user!.id, alias);
+          if (dbKey?.apiKey) return dbKey.apiKey;
+        }
+        
+        const envKeys: Record<string, string | undefined> = {
+          seedream: process.env.FREEPIK_API_KEY,
+          wavespeed: process.env.WAVESPEED_API_KEY,
+          runpod: process.env.RUNPOD_API_KEY,
+          pollinations: process.env.POLLINATIONS_API_KEY,
+        };
+        
+        return envKeys[provider] || null;
+      };
+
+      // Generate image prompt using Groq
+      let imagePrompt: string;
+      try {
+        imagePrompt = await generateImagePromptWithGroq(text, imageStyle);
+      } catch (error) {
+        // Fallback to simple prompt
+        imagePrompt = `${imageStyle} style: ${text}`;
+      }
+
+      logInfo("REGENERATE", `Regenerating image for scene ${sceneIndex + 1}`, { sceneId, imageGenerator, promptPreview: imagePrompt.slice(0, 100) });
+
+      // Create output directory if needed
+      const assetsDir = process.env.ASSETS_DIR || path.join(process.cwd(), "assets");
+      const projectDir = path.join(assetsDir, projectId);
+      if (!fs.existsSync(projectDir)) {
+        fs.mkdirSync(projectDir, { recursive: true });
+      }
+
+      const imageFilename = `scene-${sceneIndex + 1}-${Date.now()}.png`;
+      const imagePath = path.join(projectDir, imageFilename);
+      const imageUrl = `/assets/${projectId}/${imageFilename}`;
+
+      // Generate image based on provider
+      if (imageGenerator === "pollinations") {
+        const { generateImageWithPollinations } = await import("./services/image-generators");
+        const pollinationsModel = "flux";
+        const result = await generateImageWithPollinations(imagePrompt, null, width || 1920, height || 1080, pollinationsModel);
+        fs.writeFileSync(imagePath, result.imageBuffer);
+      } else if (imageGenerator === "wavespeed" || imageGenerator === "runpod") {
+        const apiKey = await getResolvedApiKey(imageGenerator);
+        if (!apiKey) {
+          return res.status(400).json({ error: `No API key configured for ${imageGenerator}` });
+        }
+        const { generateImageWithWaveSpeed, generateImageWithRunPod } = await import("./services/image-generators");
+        const remoteImageUrl = imageGenerator === "wavespeed"
+          ? await generateImageWithWaveSpeed(imagePrompt, apiKey, width || 1920, height || 1080)
+          : await generateImageWithRunPod(imagePrompt, apiKey, width || 1920, height || 1080);
+        
+        // Download and save image
+        const response = await fetch(remoteImageUrl);
+        const buffer = Buffer.from(await response.arrayBuffer());
+        fs.writeFileSync(imagePath, buffer);
+      } else {
+        // Seedream/Freepik
+        const apiKey = await getResolvedApiKey("seedream");
+        if (!apiKey) {
+          return res.status(400).json({ error: "No API key configured for Seedream/Freepik" });
+        }
+        const result = await generateImageWithSeestream({
+          prompt: imagePrompt,
+          outputPath: imagePath,
+          width: width || 1920,
+          height: height || 1080,
+          apiKey,
+        });
+        if (!result.success) {
+          throw new Error(result.error || "Image generation failed");
+        }
+      }
+
+      // Update manifest in project
+      const updatedScenes = manifest.scenes.map((scene, idx) =>
+        idx === sceneIndex ? { ...scene, imageFile: imageUrl } : scene
+      );
+      const updatedManifest = { ...manifest, scenes: updatedScenes };
+
+      await storage.updateVideoProject(projectId, {
+        manifest: updatedManifest as any,
+      });
+
+      await storage.incrementUsage("image", 1);
+
+      logInfo("REGENERATE", `Scene ${sceneIndex + 1} image regenerated successfully`, { sceneId, imageUrl });
+
+      res.json({
+        success: true,
+        sceneId,
+        imageFile: imageUrl,
+      });
+    } catch (error) {
+      logError("REGENERATE", "Scene image regeneration failed", error);
+      res.status(500).json({ error: `Failed to regenerate scene image: ${error}` });
     }
   });
 

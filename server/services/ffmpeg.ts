@@ -7,6 +7,11 @@ interface RenderOptions {
   manifest: VideoManifest;
   outputPath: string;
   projectDir: string;
+  exportQuality?: {
+    width: number;
+    height: number;
+    bitrate: string;
+  };
 }
 
 interface RenderResult {
@@ -181,9 +186,14 @@ function getTransitionFilter(transition: TransitionEffect | undefined): string {
 }
 
 export async function renderVideo(options: RenderOptions): Promise<RenderResult> {
-  const { manifest, outputPath, projectDir } = options;
-  const { width, height, scenes } = manifest;
+  const { manifest, outputPath, projectDir, exportQuality } = options;
+  const { scenes } = manifest;
   const transitionDuration = manifest.transitionDuration || 0.5;
+  
+  // Use export quality settings if provided, otherwise use manifest dimensions
+  const width = exportQuality?.width || manifest.width;
+  const height = exportQuality?.height || manifest.height;
+  const bitrate = exportQuality?.bitrate || "8M";
 
   if (!scenes || scenes.length === 0) {
     return { success: false, error: "No scenes in manifest" };
@@ -235,12 +245,16 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
       const transition = scenes[i - 1].transition || "fade";
       const transitionType = getTransitionFilter(transition);
       const offset = Math.max(0, clipEndTime - transitionDuration);
-      const outputLabel = i === sceneVideos.length - 1 ? "[vout]" : `[v${i}]`;
+      const isLastTransition = i === sceneVideos.length - 1;
+      const outputLabel = isLastTransition ? "[vtrans]" : `[v${i}]`;
       
       filterComplex += `${currentOutput}[${i}:v]xfade=transition=${transitionType}:duration=${transitionDuration}:offset=${offset}${outputLabel};`;
       currentOutput = outputLabel;
       clipEndTime = offset + sceneDurations[i];
     }
+    
+    // Add scale filter for final output
+    filterComplex += `[vtrans]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2[vout];`;
     
     const hasAudio = sceneVideos.some((v, i) => {
       const scene = scenes[i];
@@ -259,6 +273,8 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
           audioFilters.push(`[sil${i}]`);
         }
       }
+      // Remove trailing semicolon from video filter before adding audio concat
+      filterComplex = filterComplex.endsWith(";") ? filterComplex.slice(0, -1) + ";" : filterComplex;
       filterComplex += `${audioFilters.join("")}concat=n=${sceneVideos.length}:v=0:a=1[aout]`;
 
       transitionArgs = [
@@ -270,22 +286,24 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
         "-c:v", "libx264",
         "-c:a", "aac",
         "-b:a", "256k",
+        "-b:v", bitrate,
         "-preset", "medium",
-        "-crf", "18",
         "-profile:v", "high",
         "-level", "4.2",
         "-movflags", "+faststart",
         fullOutputPath,
       ];
     } else {
+      // Remove trailing semicolon for video-only output
+      const videoFilterComplex = filterComplex.endsWith(";") ? filterComplex.slice(0, -1) : filterComplex;
       transitionArgs = [
         "-y",
         ...inputs,
-        "-filter_complex", filterComplex.slice(0, -1),
+        "-filter_complex", videoFilterComplex,
         "-map", "[vout]",
         "-c:v", "libx264",
+        "-b:v", bitrate,
         "-preset", "medium",
-        "-crf", "18",
         "-profile:v", "high",
         "-level", "4.2",
         "-movflags", "+faststart",
@@ -309,8 +327,9 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
         "-c:v", "libx264",
         "-c:a", "aac",
         "-b:a", "256k",
+        "-b:v", bitrate,
+        "-vf", `scale=${width}:${height}`,
         "-preset", "medium",
-        "-crf", "18",
         "-profile:v", "high",
         "-level", "4.2",
         "-movflags", "+faststart",
@@ -332,8 +351,9 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
       "-c:v", "libx264",
       "-c:a", "aac",
       "-b:a", "256k",
+      "-b:v", bitrate,
+      "-vf", `scale=${width}:${height}`,
       "-preset", "medium",
-      "-crf", "18",
       "-profile:v", "high",
       "-level", "4.2",
       "-movflags", "+faststart",

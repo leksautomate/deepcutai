@@ -23,7 +23,10 @@ The backend is a Node.js Express application written in TypeScript (ESM modules)
 - **Pollinations Models**: flux, zimage, turbo, gptimage, gptimage-large, kontext, seedream, seedream-pro, nanobanana, nanobanana-pro
 - **Standalone Image Generator**: Dedicated page for generating images using any configured provider without creating a video project.
 - **API Key Management**: Centralized system for storing and managing API keys for various services, configurable via the Settings page or environment variables.
-- **Video Encoding**: Uses CRF 18, medium preset, high profile (level 4.2), AAC audio, and configurable transitions.
+- **Video Encoding**: Uses medium preset, high profile (level 4.2), AAC audio, and configurable transitions.
+- **Export Quality Options**: Supports 720p (4Mbps), 1080p (8Mbps), and 4K (20Mbps) export quality settings with automatic resolution scaling.
+- **Scene Duration Settings**: Configurable min/max duration per scene (alongside word count settings) when generating assets.
+- **Image Regeneration**: Individual scene images can be regenerated without redoing the entire video, accessible from the Preview tab.
 
 ### Audio-Video Synchronization (Critical)
 - **Audio duration = Image display time**: Each scene's image displays for exactly as long as its audio narration lasts.

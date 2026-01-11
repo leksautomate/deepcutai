@@ -141,6 +141,14 @@ export type ImageGenerator = typeof imageGenerators[number];
 export const pollinationsModels = ["flux", "zimage", "turbo", "gptimage", "gptimage-large", "kontext", "seedream", "seedream-pro", "nanobanana", "nanobanana-pro"] as const;
 export type PollinationsModel = typeof pollinationsModels[number];
 
+// Export quality options for rendering
+export const exportQualities = [
+  { id: "720p", label: "HD (720p)", width: 1280, height: 720, bitrate: "4M" },
+  { id: "1080p", label: "Full HD (1080p)", width: 1920, height: 1080, bitrate: "8M" },
+  { id: "4k", label: "4K Ultra HD", width: 3840, height: 2160, bitrate: "20M" },
+] as const;
+export type ExportQuality = typeof exportQualities[number]["id"];
+
 // API Keys table
 export const apiKeys = pgTable("api_keys", {
   id: varchar("id").primaryKey(),

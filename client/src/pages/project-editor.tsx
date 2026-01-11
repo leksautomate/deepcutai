@@ -178,7 +178,8 @@ export default function ProjectEditor() {
 
             <TabsContent value="preview">
               <VideoPreview 
-                manifest={manifest} 
+                manifest={manifest}
+                projectId={projectId}
                 onUpdateManifest={setManifest}
               />
             </TabsContent>

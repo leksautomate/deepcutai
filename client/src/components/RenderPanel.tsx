@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Video, Download, Loader2, Check, AlertCircle, FileVideo, Clock, HardDrive } from "lucide-react";
+import { Video, Download, Loader2, Check, AlertCircle, FileVideo, Clock, HardDrive, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { VideoManifest } from "@shared/schema";
+import { exportQualities } from "@shared/schema";
 
 interface RenderPanelProps {
   manifest?: VideoManifest;
@@ -27,7 +30,10 @@ export function RenderPanel({ manifest, projectId, onRenderComplete }: RenderPan
   const [renderProgress, setRenderProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  const [exportQuality, setExportQuality] = useState<string>("1080p");
   const { toast } = useToast();
+  
+  const selectedQuality = exportQualities.find(q => q.id === exportQuality) || exportQualities[1];
 
   const renderMutation = useMutation({
     mutationFn: async () => {
@@ -39,6 +45,7 @@ export function RenderPanel({ manifest, projectId, onRenderComplete }: RenderPan
       const response = await apiRequest("POST", "/api/render-video", {
         manifest,
         projectId,
+        exportQuality,
       });
 
       return response.json();
@@ -96,22 +103,44 @@ export function RenderPanel({ manifest, projectId, onRenderComplete }: RenderPan
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+          <div className="space-y-4">
             <div>
-              <p className="text-sm text-muted-foreground">Resolution</p>
-              <p className="font-mono text-sm">{manifest.width}x{manifest.height}</p>
+              <Label htmlFor="export-quality">Export Quality</Label>
+              <Select 
+                value={exportQuality} 
+                onValueChange={setExportQuality}
+                disabled={renderMutation.isPending}
+              >
+                <SelectTrigger className="mt-1.5" data-testid="select-export-quality">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {exportQualities.map((quality) => (
+                    <SelectItem key={quality.id} value={quality.id}>
+                      {quality.label} ({quality.width}x{quality.height})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Frame Rate</p>
-              <p className="font-mono text-sm">{manifest.fps} FPS</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Duration</p>
-              <p className="font-mono text-sm">{totalDuration.toFixed(1)} seconds</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Scenes</p>
-              <p className="font-mono text-sm">{manifest.scenes.length} scenes</p>
+
+            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+              <div>
+                <p className="text-sm text-muted-foreground">Output Resolution</p>
+                <p className="font-mono text-sm">{selectedQuality.width}x{selectedQuality.height}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Frame Rate</p>
+                <p className="font-mono text-sm">{manifest.fps} FPS</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Duration</p>
+                <p className="font-mono text-sm">{totalDuration.toFixed(1)} seconds</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Scenes</p>
+                <p className="font-mono text-sm">{manifest.scenes.length} scenes</p>
+              </div>
             </div>
           </div>
 

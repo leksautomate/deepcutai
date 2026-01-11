@@ -1,25 +1,72 @@
 import { useState, useRef, useEffect } from "react";
-import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Clock, Image as ImageIcon } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Clock, Image as ImageIcon, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import type { VideoManifest, Scene } from "@shared/schema";
 
 interface VideoPreviewProps {
   manifest?: VideoManifest;
+  projectId?: string;
   onUpdateManifest?: (manifest: VideoManifest) => void;
 }
 
-export function VideoPreview({ manifest, onUpdateManifest }: VideoPreviewProps) {
+export function VideoPreview({ manifest, projectId, onUpdateManifest }: VideoPreviewProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
+  const [regeneratingSceneId, setRegeneratingSceneId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { toast } = useToast();
+
+  const regenerateImageMutation = useMutation({
+    mutationFn: async ({ sceneId, sceneIndex }: { sceneId: string; sceneIndex: number }) => {
+      if (!manifest || !projectId) throw new Error("Missing manifest or project ID");
+      
+      setRegeneratingSceneId(sceneId);
+      const scene = manifest.scenes[sceneIndex];
+      
+      const response = await apiRequest("POST", "/api/regenerate-scene-image", {
+        projectId,
+        sceneId,
+        sceneIndex,
+        text: scene.text,
+        width: manifest.width,
+        height: manifest.height,
+      });
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setRegeneratingSceneId(null);
+      if (manifest && onUpdateManifest) {
+        const updatedScenes = manifest.scenes.map((scene) =>
+          scene.id === data.sceneId ? { ...scene, imageFile: data.imageFile } : scene
+        );
+        onUpdateManifest({ ...manifest, scenes: updatedScenes });
+      }
+      toast({
+        title: "Image Regenerated",
+        description: "Scene image has been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      setRegeneratingSceneId(null);
+      toast({
+        title: "Regeneration Failed",
+        description: error.message || "Failed to regenerate image. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const getSceneStartTime = (index: number) => {
     if (!manifest) return 0;
@@ -238,36 +285,59 @@ export function VideoPreview({ manifest, onUpdateManifest }: VideoPreviewProps) 
           <ScrollArea className="h-[500px]">
             <div className="p-4 space-y-2">
               {manifest.scenes.map((scene, index) => (
-                <button
+                <div
                   key={scene.id}
-                  onClick={() => setActiveSceneIndex(index)}
                   className={`w-full text-left p-3 rounded-md transition-all ${
                     index === activeSceneIndex
                       ? "bg-primary/10 border border-primary/20"
                       : "hover-elevate"
                   }`}
-                  data-testid={`scene-item-${index}`}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm line-clamp-2">{scene.text}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Clock className="w-3 h-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">
-                          {scene.durationInSeconds.toFixed(1)}s
-                        </span>
-                        {scene.motion && (
-                          <Badge variant="outline" className="text-[10px] px-1 py-0">
-                            {scene.motion}
-                          </Badge>
-                        )}
+                  <button
+                    onClick={() => setActiveSceneIndex(index)}
+                    className="w-full text-left"
+                    data-testid={`scene-item-${index}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm line-clamp-2">{scene.text}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Clock className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
+                            {scene.durationInSeconds.toFixed(1)}s
+                          </span>
+                          {scene.motion && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0">
+                              {scene.motion}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  </button>
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        regenerateImageMutation.mutate({ sceneId: scene.id, sceneIndex: index });
+                      }}
+                      disabled={regeneratingSceneId === scene.id || !projectId}
+                      data-testid={`button-regenerate-image-${index}`}
+                    >
+                      {regeneratingSceneId === scene.id ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                      )}
+                      <span className="text-xs">Regenerate Image</span>
+                    </Button>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           </ScrollArea>
