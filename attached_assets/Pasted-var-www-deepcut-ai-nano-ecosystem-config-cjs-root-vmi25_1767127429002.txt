@@ -1,0 +1,74 @@
+var/www/deepcut-ai# nano ecosystem.config.cjs
+root@vmi2546831:/var/www/deepcut-ai# cat > ecosystem.config.cjs << 'EOF'
+> ^C
+root@vmi2546831:/var/www/deepcut-ai# cat .env | grep DATABASE_URL
+DATABASE_URL=postgresql://deepcut:68ed209971ffcb266e7507a29850a509@localhost:5432/deepcut
+root@vmi2546831:/var/www/deepcut-ai# pm2 delete deepcut-ai
+pm2 start ecosystem.config.cjs
+pm2 save
+[PM2] Applying action deleteProcessId on app [deepcut-ai](ids: [ 0 ])
+[PM2] [deepcut-ai](0) ✓
+┌────┬───────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name      │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+└────┴───────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2][WARN] Applications deepcut-ai not running, starting...
+[PM2] App [deepcut-ai] launched (1 instances)
+┌────┬───────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name          │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼───────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ deepcut-ai    │ default     │ 1.0.0   │ fork    │ 19669    │ 0s     │ 0    │ online    │ 0%       │ 19.4mb   │ root     │ disabled │
+└────┴───────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2] Saving current process list...
+[PM2] Successfully saved in /root/.pm2/dump.pm2
+root@vmi2546831:/var/www/deepcut-ai# pm2 logs deepcut-ai --lines 20
+[TAILING] Tailing last 20 lines for [deepcut-ai] process (change the value with --lines option)
+/var/log/pm2/deepcut-error-0.log last 20 lines:
+0|deepcut- | 2025-12-30 21:13:45: Error: DATABASE_URL environment variable is not set
+0|deepcut- | 2025-12-30 21:13:45:     at /var/www/deepcut-ai/dist/index.cjs:70:31546
+0|deepcut- | 2025-12-30 21:13:45:     at /var/www/deepcut-ai/dist/index.cjs:1:225
+0|deepcut- | 2025-12-30 21:13:45:     at /var/www/deepcut-ai/dist/index.cjs:92:4581
+0|deepcut- | 2025-12-30 21:13:45:     at /var/www/deepcut-ai/dist/index.cjs:1:225
+0|deepcut- | 2025-12-30 21:13:45:     at Object.<anonymous> (/var/www/deepcut-ai/dist/index.cjs:105:2885)
+0|deepcut- | 2025-12-30 21:13:45:     at Module._compile (node:internal/modules/cjs/loader:1521:14)
+0|deepcut- | 2025-12-30 21:13:45:     at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+0|deepcut- | 2025-12-30 21:13:45:     at Module.load (node:internal/modules/cjs/loader:1266:32)
+0|deepcut- | 2025-12-30 21:13:45:     at Module._load (node:internal/modules/cjs/loader:1091:12)
+0|deepcut- | 2025-12-30 21:13:45:     at cjsLoader (node:internal/modules/esm/translators:298:15)
+
+/var/log/pm2/deepcut-out-0.log last 20 lines:
+0|deepcut- | 2025-12-30 21:41:12: [CLEANUP] Starting cleanup scheduler (every 1 hours) 
+0|deepcut- | 2025-12-30 21:41:12: [SERVER] DeepCut AI server started with cleanup scheduler 
+0|deepcut- | 2025-12-30 21:41:12: 9:41:12 PM [express] serving on port 5000
+0|deepcut- | 2025-12-30 21:41:13: [AUTH] Admin user created
+
+^C
+root@vmi2546831:/var/www/deepcut-ai# pm2 logs deepcut-ai --lines 20^C
+root@vmi2546831:/var/www/deepcut-ai# nano ecosystem.config.cjs
+root@vmi2546831:/var/www/deepcut-ai# pm2 delete deepcut-ai
+pm2 start ecosystem.config.cjs
+pm2 save
+[PM2] Applying action deleteProcessId on app [deepcut-ai](ids: [ 0 ])
+[PM2] [deepcut-ai](0) ✓
+┌────┬───────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name      │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+└────┴───────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2][ERROR] File ecosystem.config.cjs malformated
+/var/www/deepcut-ai/ecosystem.config.cjs:7
+    DATABASE_URL= 'postgresql://deepcut:68ed209971ffcb266e7507a29850a509@localhost:5432/deepcut',
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+SyntaxError: Invalid shorthand property initializer
+    at wrapSafe (node:internal/modules/cjs/loader:1464:18)
+    at Module._compile (node:internal/modules/cjs/loader:1495:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Common.parseConfig (/usr/lib/node_modules/pm2/lib/Common.js:331:12)
+    at API._startJson (/usr/lib/node_modules/pm2/lib/API.js:934:25)
+    at API.start (/usr/lib/node_modules/pm2/lib/API.js:329:12)
+[PM2] Saving current process list...
+[PM2][WARN] PM2 is not managing any process, skipping save...
+[PM2][WARN] To force saving use: pm2 save --force
+root@vmi2546831:/var/www/deepcut-ai# 

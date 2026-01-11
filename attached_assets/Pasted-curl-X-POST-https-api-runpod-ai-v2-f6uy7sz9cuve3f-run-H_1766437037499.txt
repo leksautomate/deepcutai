@@ -1,0 +1,82 @@
+curl -X POST "https://api.runpod.ai/v2/f6uy7sz9cuve3f/run" \
+  -H "Authorization: Bearer YOUR_RUNPOD_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": {
+      "prompt": "cinematic medieval battlefield at dawn, wide-angle shot, epic scale, thousands of soldiers forming ranks across a mist-covered valley, dramatic golden sunrise breaking through dark storm clouds, banners fluttering in the wind, detailed medieval armor and weapons, realistic faces with determination and fear, horses and infantry silhouetted against the light, volumetric fog, atmospheric depth, dramatic rim lighting, ultra-detailed, realistic textures, film grain, high contrast, historical realism, cinematic composition, epic historical painting style",
+      "seed": 424242,
+      "guidance": 3.5,
+      "width": 1280,
+      "height": 720
+    }
+  }'
+✅ Python (requests)
+python
+Copy code
+import requests
+
+API_KEY = "YOUR_RUNPOD_API_KEY"
+ENDPOINT_ID = "f6uy7sz9cuve3f"
+
+url = f"https://api.runpod.ai/v2/{ENDPOINT_ID}/run"
+
+headers = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json"
+}
+
+payload = {
+    "input": {
+        "prompt": "cinematic medieval battlefield at dawn, wide-angle shot, epic scale...",
+        "seed": 424242,
+        "guidance": 3.5,
+        "width": 1280,
+        "height": 720
+    }
+}
+
+response = requests.post(url, headers=headers, json=payload)
+print(response.json())
+📌 Response will look like:
+
+json
+Copy code
+{
+  "id": "805917f8-b360-4cf4-981c-8c7795a4969c-e1",
+  "status": "IN_QUEUE"
+}
+✅ JavaScript (Node.js / Fetch)
+js
+Copy code
+const fetch = require("node-fetch");
+
+const API_KEY = "YOUR_RUNPOD_API_KEY";
+const ENDPOINT_ID = "f6uy7sz9cuve3f";
+
+fetch(`https://api.runpod.ai/v2/${ENDPOINT_ID}/run`, {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${API_KEY}`,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    input: {
+      prompt: "cinematic medieval battlefield at dawn, wide-angle shot, epic scale...",
+      seed: 424242,
+      guidance: 3.5,
+      width: 1280,
+      height: 720
+    }
+  })
+})
+.then(res => res.json())
+.then(data => console.log(data))
+.catch(err => console.error(err));
+2️⃣ RunPod — Check Job Status (GET /status/{id})
+This matches your second HTTP Request node.
+
+✅ cURL
+bash
+Copy code
+curl -X GET "https://api.runpod.ai/v2/f6uy7sz9cuve3f/status/JOB_ID_HERE" \
+  -H "Authorization: Bearer YOUR_RUNPOD_API_KEY"

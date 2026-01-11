@@ -1,0 +1,226 @@
+/image/{prompt}​Copy link
+Generate an image or video from a text prompt.
+
+Image Models: flux (default), turbo, gptimage, kontext, seedream, nanobanana, nanobanana-pro
+
+Video Models: veo, seedance
+
+veo: Text-to-video only (4-8 seconds)
+seedance: Text-to-video and image-to-video (2-10 seconds)
+Authentication:
+
+Include your API key either:
+
+In the Authorization header as a Bearer token: Authorization: Bearer YOUR_API_KEY
+As a query parameter: ?key=YOUR_API_KEY
+API keys can be created from your dashboard at enter.pollinations.ai.
+
+Path Parameters
+promptCopy link to prompt
+Type:string
+min length:  
+1
+required
+Example
+Example
+Text description of the image or video to generate
+
+Query Parameters
+modelCopy link to model
+Type:string
+enum
+default: 
+"zimage"
+AI model. Image: flux, zimage, turbo, gptimage, kontext, seedream, seedream-pro, nanobanana. Video: veo, seedance, seedance-pro
+
+kontext
+turbo
+nanobanana
+nanobanana-pro
+seedream
+seedream-pro
+gptimage
+gptimage-large
+flux
+zimage
+veo
+seedance
+seedance-pro
+Hide values
+widthCopy link to width
+Type:integer
+min:  
+0
+max:  
+9007199254740991
+default: 
+1024
+Example
+Image width in pixels
+
+heightCopy link to height
+Type:integer
+min:  
+0
+max:  
+9007199254740991
+default: 
+1024
+Example
+Image height in pixels
+
+seedCopy link to seed
+Type:integer
+min:  
+-1
+max:  
+2147483647
+default: 
+0
+Example
+Random seed for reproducible results. Use -1 for random.
+
+enhanceCopy link to enhance
+Type:boolean
+default: 
+false
+Let AI improve your prompt for better results
+
+negative_promptCopy link to negative_prompt
+Type:string
+default: 
+"worst quality, blurry"
+What to avoid in the generated image
+
+safeCopy link to safe
+Type:boolean
+default: 
+false
+Enable safety content filters
+
+qualityCopy link to quality
+Type:string
+enum
+default: 
+"medium"
+Example
+Image quality level (gptimage only)
+
+low
+medium
+high
+hd
+imageCopy link to image
+Type:string
+Reference image URL(s). Comma/pipe separated for multiple. For veo: image[0]=first frame, image[1]=last frame (interpolation)
+
+transparentCopy link to transparent
+Type:boolean
+default: 
+false
+Generate with transparent background (gptimage only)
+
+durationCopy link to duration
+Type:integer
+min:  
+1
+max:  
+10
+Video duration in seconds (video models only). veo: 4, 6, or 8. seedance: 2-10
+
+aspectRatioCopy link to aspectRatio
+Type:string
+Video aspect ratio: 16:9 or 9:16 (veo, seedance)
+
+audioCopy link to audio
+Type:boolean
+default: 
+false
+Enable audio generation for video (veo only)
+
+Headers
+AcceptCopy link to Accept
+Example
+Responses
+
+200
+Selected Content Type:
+image/jpeg
+Success - Returns the generated image or video
+
+Type:string
+Format:binary
+binary data, used to describe files
+
+
+400
+application/json
+Something was wrong with the input data, check the details for more info.
+
+Type:object
+error
+Type:object
+required
+Show Child Attributesfor error
+status
+const:  
+400
+required
+success
+Type:const
+const:  
+false
+required
+
+401
+application/json
+You need to authenticate by providing a session cookie or Authorization header (Bearer token).
+
+Type:object
+error
+Type:object
+required
+Show Child Attributesfor error
+status
+const:  
+401
+required
+success
+Type:const
+const:  
+false
+required
+
+500
+application/json
+Oh snap, something went wrong on our end. We're on it!
+
+Type:object
+error
+Type:object
+required
+Show Child Attributesfor error
+status
+const:  
+500
+required
+success
+Type:const
+const:  
+false
+required
+Request Example forget/image/{prompt}
+Shell Curl
+
+curl 'https://gen.pollinations.ai/image/a beautiful sunset over mountains?model=zimage&width=1024&height=1024&seed=0&enhance=false&negative_prompt=worst%20quality%2C%20blurry&safe=false&quality=medium&image=&transparent=false&duration=1&aspectRatio=&audio=false' \
+  --header 'Authorization: Bearer sk_zRfEdhJSf7CnYkYIOZNRlglw9jYJdbLB'
+
+Test Request
+(get /image/{prompt})
+Status:200
+Status:400
+Status:401
+Status:500
+
+{}
+Success - Returns t
