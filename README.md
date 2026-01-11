@@ -20,10 +20,12 @@ chmod +x install.sh
 The script will:
 - Install all dependencies (Node.js, PostgreSQL, FFmpeg, Nginx, PM2)
 - Create the database automatically
-- Ask for admin username and password
+- Let you choose the port (5000, 8080, 8050, or 7000)
 - Configure everything and start the app
 
-**API keys are optional during installation** - you can add them later through the Settings page after login.
+**No credentials needed during installation!** On first visit, you'll be prompted to create your admin account through a secure setup page.
+
+**API keys are optional** - you can add them later through the Settings page after login.
 
 ---
 
@@ -31,7 +33,9 @@ The script will:
 
 - **AI Script Generation** - Generate video scripts from any topic using Google Gemini
 - **Multi-Provider TTS** - Choose between Speechify (6 voices) or Inworld TTS (12 voices)
-- **Multi-Provider Image Generation** - Seedream/Freepik, WaveSpeed, or RunPod
+- **Multi-Provider Image Generation** - Seedream/Freepik, WaveSpeed, RunPod, or Pollinations (10 AI models)
+- **Standalone Image Generator** - Generate images without creating a video project
+- **One-Time Registration** - Secure first-time setup without hardcoded credentials
 - **Video Rendering** - Automatic video assembly with FFmpeg
 - **Background Processing** - Generate videos in the background while you work
 - **Per-Project Settings** - Customize scene word counts per project
@@ -92,7 +96,8 @@ All API keys can be configured AFTER installation through the Settings page. You
 | **Freepik** | Images (Option 1) | [Freepik API](https://www.freepik.com/api) |
 | **WaveSpeed** | Images (Option 2) | [WaveSpeed](https://wavespeed.ai) |
 | **RunPod** | Images (Option 3) | [RunPod](https://runpod.io) |
-| **Groq** | Image prompts (optional) | [Groq](https://console.groq.com) |
+| **Pollinations** | Images (Option 4) | [Pollinations](https://pollinations.ai) (free, optional key) |
+| **Groq** | Script generation fallback | [Groq](https://console.groq.com) |
 
 ## Environment Variables
 
@@ -106,10 +111,10 @@ Create a `.env` file with ALL of these variables:
 # Database Connection
 DATABASE_URL=postgresql://deepcut:your_password@localhost:5432/deepcut
 
-# Authentication (MUST SET THESE FIRST!)
+# Authentication
 SESSION_SECRET=generate_a_random_64_character_string_here
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your_secure_admin_password
+# Note: Admin credentials are no longer needed here!
+# Create your admin account through the web interface on first visit.
 
 # ===========================================
 # AI SERVICES - Set via UI or Environment
@@ -128,6 +133,7 @@ INWORLD_API_KEY=your_inworld_api_key
 FREEPIK_API_KEY=your_freepik_api_key
 WAVESPEED_API_KEY=your_wavespeed_api_key
 RUNPOD_API_KEY=your_runpod_api_key
+POLLINATIONS_API_KEY=your_pollinations_api_key  # Optional - works without key
 ```
 
 ### Generate a Session Secret
@@ -257,10 +263,9 @@ nano .env
 # Database - use the password you created above
 DATABASE_URL=postgresql://deepcut:your_secure_password@localhost:5432/deepcut
 
-# Authentication - REQUIRED!
+# Authentication
 SESSION_SECRET=REPLACE_WITH_OUTPUT_OF_openssl_rand_hex_32
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your_secure_admin_password
+# Note: No admin credentials needed! Create your account on first visit.
 
 # AI Services - add your keys here OR configure in Settings after login
 GEMINI_API_KEY=
@@ -270,6 +275,7 @@ INWORLD_API_KEY=
 FREEPIK_API_KEY=
 WAVESPEED_API_KEY=
 RUNPOD_API_KEY=
+POLLINATIONS_API_KEY=
 ```
 
 Generate a session secret:
@@ -457,14 +463,21 @@ Open `https://your_domain.com` - you should see the login page with a padlock ic
 
 ---
 
-## Step 8: First Login and API Key Configuration
+## Step 8: First-Time Setup and Login
 
-Now you can log in and configure your API keys!
+### Create Your Admin Account (First Visit Only)
+1. Open `https://your_domain.com` in your browser
+2. You'll see the **Setup** page (only appears on first visit)
+3. Create your admin account:
+   - Choose a username (min 3 characters)
+   - Enter your email
+   - Create a password (min 8 characters)
+4. Click "Create Admin Account"
+5. You'll be redirected to the login page
 
 ### Login
-1. Open `https://your_domain.com` in your browser
-2. Enter your `ADMIN_USERNAME` and `ADMIN_PASSWORD` (from your .env file)
-3. Click Login
+1. Enter your username and password
+2. Click Login
 
 ### Configure API Keys (after logging in)
 1. Click the Settings icon (gear) in the sidebar
@@ -577,16 +590,30 @@ pm2 delete deepcut-ai       # Remove from PM2
 
 ### Login page loads but login fails
 
-1. Check if admin user was created:
+1. Make sure you've created an admin account first (visit the setup page on first run)
+
+2. Check if setup was completed:
    ```bash
-   pm2 logs deepcut-ai --lines 100 | grep AUTH
-   # Should show "Admin user created" or "Admin user already exists"
+   pm2 logs deepcut-ai --lines 100 | grep -E "(SETUP|AUTH)"
+   # Should show "Admin account created" message
    ```
 
-2. Restart PM2 after changing .env:
+3. Restart PM2 after changing .env:
    ```bash
    pm2 restart deepcut-ai
    ```
+
+### Database password authentication failed
+
+If you see `password authentication failed for user "deepcut"`:
+
+```bash
+# Get the password from your .env file and update PostgreSQL
+cd /var/www/deepcut-ai
+DB_PASSWORD=$(grep DATABASE_URL .env | sed 's/.*:\/\/deepcut:\([^@]*\)@.*/\1/')
+sudo -u postgres psql -c "ALTER USER deepcut WITH PASSWORD '$DB_PASSWORD';"
+pm2 restart deepcut-ai
+```
 
 ### Check all logs
 ```bash
@@ -631,18 +658,19 @@ sudo tail -f /var/log/nginx/error.log
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `SESSION_SECRET` | Yes | Random string for session encryption |
-| `ADMIN_USERNAME` | Yes | Admin login username |
-| `ADMIN_PASSWORD` | Yes | Admin login password |
 | `GEMINI_API_KEY` | No* | For script generation |
-| `GROQ_API_KEY` | No | For image prompt enhancement |
+| `GROQ_API_KEY` | No* | For script generation fallback |
 | `SPEECHIFY_API_KEY` | No* | For Speechify TTS |
 | `INWORLD_API_KEY` | No* | For Inworld TTS |
 | `FREEPIK_API_KEY` | No* | For Seedream/Freepik images |
 | `WAVESPEED_API_KEY` | No* | For WaveSpeed images |
 | `RUNPOD_API_KEY` | No* | For RunPod images |
+| `POLLINATIONS_API_KEY` | No | For Pollinations images (works without key) |
 | `COOKIE_SECURE` | No | Set to `true` to enable secure cookies (requires HTTPS) |
 
 *Can be set via Settings page after login instead of environment variables.
+
+**Note:** Admin credentials are no longer set via environment variables. Create your admin account through the web interface on first visit.
 
 ### Enabling HTTPS/SSL
 
@@ -654,7 +682,27 @@ Then restart: `pm2 restart deepcut-ai`
 
 ---
 
+## Pollinations Image Models
+
+When using Pollinations as your image generator, you can choose from 10 AI models:
+
+| Model | Description |
+|-------|-------------|
+| `flux` | Default high-quality model |
+| `zimage` | Fast image generation |
+| `turbo` | Quick results |
+| `gptimage` | GPT-powered images |
+| `gptimage-large` | Higher resolution GPT images |
+| `kontext` | Context-aware generation |
+| `seedream` | Dreamlike imagery |
+| `seedream-pro` | Enhanced dreamlike imagery |
+| `nanobanana` | Artistic style |
+| `nanobanana-pro` | Enhanced artistic style |
+
+**Note:** Pollinations works without an API key, but adding one provides higher rate limits.
+
+---
+
 ## License
 
 MIT
-# deepcutai
