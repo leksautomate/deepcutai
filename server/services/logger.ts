@@ -7,6 +7,9 @@ const ERROR_LOG_FILE = path.join(LOG_DIR, "error.log");
 const INFO_LOG_FILE = path.join(LOG_DIR, "info.log");
 const MAX_LOG_ENTRIES = 500;
 
+// Track if file logging is available (set to false on permission errors)
+let fileLoggingEnabled = true;
+
 export interface SystemLogEntry {
   id: string;
   level: "info" | "warn" | "error" | "debug";
@@ -19,11 +22,31 @@ export interface SystemLogEntry {
 
 const inMemoryLogs: SystemLogEntry[] = [];
 
-function ensureLogDir() {
-  if (!fs.existsSync(LOG_DIR)) {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
+function ensureLogDir(): boolean {
+  if (!fileLoggingEnabled) return false;
+  try {
+    if (!fs.existsSync(LOG_DIR)) {
+      fs.mkdirSync(LOG_DIR, { recursive: true });
+    }
+    return true;
+  } catch {
+    // Permission denied or other error - disable file logging
+    fileLoggingEnabled = false;
+    console.warn("[Logger] File logging disabled - cannot create logs directory");
+    return false;
   }
 }
+
+function safeAppendFile(filePath: string, content: string): void {
+  if (!fileLoggingEnabled) return;
+  try {
+    fs.appendFileSync(filePath, content);
+  } catch {
+    // Permission denied - disable file logging silently
+    fileLoggingEnabled = false;
+  }
+}
+
 
 function formatLogEntry(level: string, category: string, message: string, data?: Record<string, unknown>): string {
   const timestamp = new Date().toISOString();
@@ -41,15 +64,15 @@ function addToMemoryLog(entry: SystemLogEntry) {
 
 export function logError(category: string, message: string, error?: Error | unknown, data?: Record<string, unknown>, projectId?: string) {
   ensureLogDir();
-  
+
   const errorData = {
     ...data,
     errorMessage: error instanceof Error ? error.message : String(error),
     errorStack: error instanceof Error ? error.stack : undefined,
   };
-  
+
   const entry = formatLogEntry("ERROR", category, message, errorData);
-  fs.appendFileSync(ERROR_LOG_FILE, entry);
+  safeAppendFile(ERROR_LOG_FILE, entry);
   console.error(`[${category}] ${message}`, error);
 
   addToMemoryLog({
@@ -66,7 +89,7 @@ export function logError(category: string, message: string, error?: Error | unkn
 export function logInfo(category: string, message: string, data?: Record<string, unknown>, projectId?: string) {
   ensureLogDir();
   const entry = formatLogEntry("INFO", category, message, data);
-  fs.appendFileSync(INFO_LOG_FILE, entry);
+  safeAppendFile(INFO_LOG_FILE, entry);
   console.log(`[${category}] ${message}`, data || "");
 
   addToMemoryLog({
@@ -83,7 +106,7 @@ export function logInfo(category: string, message: string, data?: Record<string,
 export function logWarning(category: string, message: string, data?: Record<string, unknown>, projectId?: string) {
   ensureLogDir();
   const entry = formatLogEntry("WARN", category, message, data);
-  fs.appendFileSync(ERROR_LOG_FILE, entry);
+  safeAppendFile(ERROR_LOG_FILE, entry);
   console.warn(`[${category}] ${message}`, data || "");
 
   addToMemoryLog({
@@ -113,11 +136,11 @@ export function logDebug(category: string, message: string, data?: Record<string
 
 export function getRecentErrors(limit: number = 50): string[] {
   ensureLogDir();
-  
+
   if (!fs.existsSync(ERROR_LOG_FILE)) {
     return [];
   }
-  
+
   const content = fs.readFileSync(ERROR_LOG_FILE, "utf-8");
   const lines = content.split("\n").filter(line => line.trim());
   return lines.slice(-limit);
@@ -125,15 +148,15 @@ export function getRecentErrors(limit: number = 50): string[] {
 
 export function getRecentLogs(limit: number = 100): { errors: string[]; info: string[] } {
   ensureLogDir();
-  
+
   const errors = fs.existsSync(ERROR_LOG_FILE)
     ? fs.readFileSync(ERROR_LOG_FILE, "utf-8").split("\n").filter(l => l.trim()).slice(-limit)
     : [];
-    
+
   const info = fs.existsSync(INFO_LOG_FILE)
     ? fs.readFileSync(INFO_LOG_FILE, "utf-8").split("\n").filter(l => l.trim()).slice(-limit)
     : [];
-    
+
   return { errors, info };
 }
 
@@ -160,23 +183,23 @@ export function clearSystemLogs() {
 
 export function clearOldLogs(maxAgeHours: number = 168) {
   ensureLogDir();
-  
+
   const now = Date.now();
   const maxAge = maxAgeHours * 60 * 60 * 1000;
-  
+
   for (const logFile of [ERROR_LOG_FILE, INFO_LOG_FILE]) {
     if (!fs.existsSync(logFile)) continue;
-    
+
     const content = fs.readFileSync(logFile, "utf-8");
     const lines = content.split("\n").filter(line => {
       if (!line.trim()) return false;
       const match = line.match(/^\[([^\]]+)\]/);
       if (!match) return true;
-      
+
       const logTime = new Date(match[1]).getTime();
       return now - logTime < maxAge;
     });
-    
+
     fs.writeFileSync(logFile, lines.join("\n") + "\n");
   }
 }
