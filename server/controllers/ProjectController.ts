@@ -39,6 +39,8 @@ const generateAssetsSchema = z.object({
     sceneSettings: z.object({
         targetWords: z.number().optional(),
         maxWords: z.number().optional(),
+        minDuration: z.number().optional(),
+        maxDuration: z.number().optional(),
     }).optional(),
 });
 
