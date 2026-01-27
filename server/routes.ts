@@ -90,16 +90,25 @@ export async function registerRoutes(
   // ==========================================
   const longTts = await import("./services/long-tts");
 
-  // Default Inworld voices list
+  // Default Inworld voices list (using correct Inworld voice ID format)
+  // Format: default-{workspace_id}__voicename
   const DEFAULT_INWORLD_VOICES = [
-    { id: "default-xtytd0coit3byx-1ffsuog__george", name: "George", gender: "Male" },
-    { id: "default-xtytd0coit3byx-1ffsuog__emma", name: "Emma", gender: "Female" },
-    { id: "default-xtytd0coit3byx-1ffsuog__lily", name: "Lily", gender: "Female" },
-    { id: "default-xtytd0coit3byx-1ffsuog__james", name: "James", gender: "Male" },
-    { id: "default-xtytd0coit3byx-1ffsuog__olivia", name: "Olivia", gender: "Female" },
-    { id: "default-xtytd0coit3byx-1ffsuog__max", name: "Max", gender: "Male" },
-    { id: "default-xtytd0coit3byx-1ffsuog__sophia", name: "Sophia", gender: "Female" },
-    { id: "default-xtytd0coit3byx-1ffsuog__ethan", name: "Ethan", gender: "Male" },
+    { id: "default-xtytd8coit3byx-lffsuog__george", name: "George", gender: "Male" },
+    { id: "default-xtytd8coit3byx-lffsuog__emma", name: "Emma", gender: "Female" },
+    { id: "default-xtytd8coit3byx-lffsuog__lily", name: "Lily", gender: "Female" },
+    { id: "default-xtytd8coit3byx-lffsuog__james", name: "James", gender: "Male" },
+    { id: "default-xtytd8coit3byx-lffsuog__olivia", name: "Olivia", gender: "Female" },
+    { id: "default-xtytd8coit3byx-lffsuog__max", name: "Max", gender: "Male" },
+    { id: "default-xtytd8coit3byx-lffsuog__sophia", name: "Sophia", gender: "Female" },
+    { id: "default-xtytd8coit3byx-lffsuog__ethan", name: "Ethan", gender: "Male" },
+    { id: "default-xtytd8coit3byx-lffsuog__ava", name: "Ava", gender: "Female" },
+    { id: "default-xtytd8coit3byx-lffsuog__liam", name: "Liam", gender: "Male" },
+    { id: "default-xtytd8coit3byx-lffsuog__mia", name: "Mia", gender: "Female" },
+    { id: "default-xtytd8coit3byx-lffsuog__noah", name: "Noah", gender: "Male" },
+    { id: "default-xtytd8coit3byx-lffsuog__isabella", name: "Isabella", gender: "Female" },
+    { id: "default-xtytd8coit3byx-lffsuog__lucas", name: "Lucas", gender: "Male" },
+    { id: "default-xtytd8coit3byx-lffsuog__charlotte", name: "Charlotte", gender: "Female" },
+    { id: "default-xtytd8coit3byx-lffsuog__oliver", name: "Oliver", gender: "Male" },
   ];
 
   // Get all voices (default + custom)
