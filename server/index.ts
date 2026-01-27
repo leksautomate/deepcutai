@@ -23,9 +23,14 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "blob:", "https:"],
       mediaSrc: ["'self'", "blob:"],
       connectSrc: ["'self'", "https://api.groq.com", "https://api.speechify.com", "https://pollinations.ai", "https://*.freepik.com"],
+      // Do NOT add upgrade-insecure-requests - breaks HTTP deployments
+      upgradeInsecureRequests: null,
     },
   },
   crossOriginEmbedderPolicy: false, // Required for loading external images
+  crossOriginOpenerPolicy: false, // Disable COOP for HTTP
+  crossOriginResourcePolicy: false, // Disable CORP for HTTP
+  hsts: false, // Disable HSTS for HTTP deployments
 }));
 
 // Rate limiting for authentication endpoints
@@ -141,12 +146,10 @@ app.use("/tts-output", express.static(path.join(process.cwd(), "public", "tts-ou
     log("Vite setup complete.");
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5001;
-  log(`Attempting to serve on port ${port} (FORCED)`);
+  // Serve the app on the port specified in the environment variable PORT
+  // Default to 5000 if not specified.
+  const port = parseInt(process.env.PORT || "5000", 10);
+  log(`Attempting to serve on port ${port}`);
   httpServer.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
   });
