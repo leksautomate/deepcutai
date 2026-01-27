@@ -8,9 +8,8 @@ WORKDIR /app
 # Copy only package files for better caching
 COPY package*.json ./
 
-# Use build cache for npm dependencies
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --only=production && \
+# Install production dependencies only
+RUN npm ci --omit=dev && \
     npm cache clean --force
 
 # ==================================
@@ -24,8 +23,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install all dependencies (including devDependencies for build)
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+RUN npm ci && \
+    npm cache clean --force
 
 # Copy source code
 COPY . .
