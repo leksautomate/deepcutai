@@ -128,9 +128,9 @@ export async function registerRoutes(
         return res.status(400).json({ error: "voiceId and name are required" });
       }
       const voice = longTts.addCustomVoice(voiceId, name);
-      res.json(voice);
+      return res.json(voice);
     } catch (error) {
-      res.status(500).json({ error: "Failed to add voice" });
+      return res.status(500).json({ error: "Failed to add voice" });
     }
   });
 
@@ -145,9 +145,9 @@ export async function registerRoutes(
       if (!voice) {
         return res.status(404).json({ error: "Voice not found" });
       }
-      res.json(voice);
+      return res.json(voice);
     } catch (error) {
-      res.status(500).json({ error: "Failed to update voice" });
+      return res.status(500).json({ error: "Failed to update voice" });
     }
   });
 
@@ -157,7 +157,7 @@ export async function registerRoutes(
     if (!deleted) {
       return res.status(404).json({ error: "Voice not found" });
     }
-    res.json({ success: true });
+    return res.json({ success: true });
   });
 
   // Get generated TTS files
@@ -180,9 +180,9 @@ export async function registerRoutes(
           };
         })
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      res.json({ files });
+      return res.json({ files });
     } catch (error) {
-      res.status(500).json({ error: "Failed to list files" });
+      return res.status(500).json({ error: "Failed to list files" });
     }
   });
 
@@ -195,9 +195,9 @@ export async function registerRoutes(
         return res.status(404).json({ error: "File not found" });
       }
       fs.unlinkSync(filePath);
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: "Failed to delete file" });
+      return res.status(500).json({ error: "Failed to delete file" });
     }
   });
 
@@ -211,6 +211,7 @@ export async function registerRoutes(
     res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     fs.createReadStream(filePath).pipe(res);
+    return;
   });
 
   // Generate TTS (synchronous)
@@ -230,9 +231,9 @@ export async function registerRoutes(
       if (!result.success) {
         return res.status(500).json({ error: result.error });
       }
-      res.json(result);
+      return res.json(result);
     } catch (error) {
-      res.status(500).json({ error: "Failed to generate TTS" });
+      return res.status(500).json({ error: "Failed to generate TTS" });
     }
   });
 
@@ -266,7 +267,7 @@ export async function registerRoutes(
       ttsJobs.set(jobId, { status: "failed", error: error.message });
     });
 
-    res.json({ jobId });
+    return res.json({ jobId });
   });
 
   // Get job status
@@ -275,7 +276,7 @@ export async function registerRoutes(
     if (!job) {
       return res.status(404).json({ error: "Job not found" });
     }
-    res.json(job);
+    return res.json(job);
   });
 
   return httpServer;

@@ -8,15 +8,15 @@ export class AuthController extends BaseController {
     /**
      * Check if the system is set up (has an admin user)
      */
-    async getSetupStatus(req: Request, res: Response) {
+    async getSetupStatus(_req: Request, res: Response) {
         try {
             const userCount = await storage.getUserCount();
-            res.json({
+            return res.json({
                 needsSetup: userCount === 0,
                 message: userCount === 0 ? "No users found. Registration required." : "System is configured."
             });
         } catch (error) {
-            this.handleError(error, res, 'AuthController.getSetupStatus');
+            return this.handleError(error, res, 'AuthController.getSetupStatus');
         }
     }
 
@@ -49,13 +49,13 @@ export class AuthController extends BaseController {
 
             this.logInfo("SETUP", `Admin account created: ${username}`);
 
-            res.json({
+            return res.json({
                 success: true,
                 message: "Admin account created successfully. Please log in.",
                 user: { id: user.id, username: user.username }
             });
         } catch (error) {
-            this.handleError(error, res, 'AuthController.registerAdmin');
+            return this.handleError(error, res, 'AuthController.registerAdmin');
         }
     }
 }

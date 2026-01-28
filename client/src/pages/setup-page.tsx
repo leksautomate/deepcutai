@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +10,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 export default function SetupPage() {
-  const [, setLocation] = useLocation();
+
   const { toast } = useToast();
-  
+
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,7 +51,7 @@ export default function SetupPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (password !== confirmPassword) {
       toast({
         title: "Passwords don't match",
@@ -60,7 +60,7 @@ export default function SetupPage() {
       });
       return;
     }
-    
+
     if (password.length < 8) {
       toast({
         title: "Password too short",
@@ -69,7 +69,7 @@ export default function SetupPage() {
       });
       return;
     }
-    
+
     registerMutation.mutate();
   };
 
@@ -81,7 +81,7 @@ export default function SetupPage() {
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold mb-2">Account Created!</h2>
             <p className="text-muted-foreground">Redirecting to login page...</p>
-            <Button 
+            <Button
               onClick={() => window.location.href = "/auth"}
               className="mt-4"
               data-testid="button-go-to-login"
@@ -133,7 +133,7 @@ export default function SetupPage() {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
@@ -150,7 +150,7 @@ export default function SetupPage() {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -168,7 +168,7 @@ export default function SetupPage() {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <div className="relative">
@@ -185,16 +185,16 @@ export default function SetupPage() {
                 />
               </div>
             </div>
-            
+
             {registerMutation.isError && (
               <p className="text-sm text-destructive" data-testid="text-setup-error">
                 {(registerMutation.error as Error)?.message || "Registration failed"}
               </p>
             )}
-            
-            <Button 
-              type="submit" 
-              className="w-full" 
+
+            <Button
+              type="submit"
+              className="w-full"
               disabled={registerMutation.isPending}
               data-testid="button-setup-register"
             >

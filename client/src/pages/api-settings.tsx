@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Save, Plus } from "lucide-react";
+import { Trash2, Plus } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function ApiSettings() {

@@ -36,7 +36,7 @@ const SPEECHIFY_VOICES = [
 
 export class AssetController extends BaseController {
 
-    async getVoices(req: Request, res: Response) {
+    async getVoices(_req: Request, res: Response) {
         try {
             const { inworldDefaultVoices } = await import("../services/inworld-tts");
 
@@ -48,13 +48,13 @@ export class AssetController extends BaseController {
                 accent: "Standard",
             }));
 
-            res.json({
+            return res.json({
                 defaultVoices: SPEECHIFY_VOICES,
                 inworldVoices,
                 customVoices: getAppSettings().customVoices,
             });
         } catch (error) {
-            this.handleError(error, res, 'AssetController.getVoices');
+            return this.handleError(error, res, 'AssetController.getVoices');
         }
     }
 
@@ -104,12 +104,12 @@ export class AssetController extends BaseController {
                 throw new Error(`Failed to generate voice preview. Make sure your ${provider} API key is configured.`);
             }
 
-            res.json({
+            return res.json({
                 audioUrl: `/assets/previews/${previewId}.mp3`,
                 duration: ttsResult.durationSeconds,
             });
         } catch (error) {
-            this.handleError(error, res, 'AssetController.previewTTS');
+            return this.handleError(error, res, 'AssetController.previewTTS');
         }
     }
 
@@ -168,9 +168,9 @@ export class AssetController extends BaseController {
             }
 
             await storage.incrementUsage("image", 1);
-            res.json({ imageUrl });
+            return res.json({ imageUrl });
         } catch (error) {
-            this.handleError(error, res, 'AssetController.generateImage');
+            return this.handleError(error, res, 'AssetController.generateImage');
         }
     }
 
@@ -272,9 +272,9 @@ export class AssetController extends BaseController {
                 await storage.updateVideoProject(projectId, { manifest });
             }
 
-            res.json({ success: true, imageUrl: relativeImagePath });
+            return res.json({ success: true, imageUrl: relativeImagePath });
         } catch (error) {
-            this.handleError(error, res, 'AssetController.regenerateSceneImage');
+            return this.handleError(error, res, 'AssetController.regenerateSceneImage');
         }
     }
 }

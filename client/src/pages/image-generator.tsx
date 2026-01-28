@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Wand2, Loader2, Download } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 
 const POLLINATIONS_MODELS = [
   { value: "flux", label: "Flux (Default)" },
@@ -33,16 +33,13 @@ export default function ImageGenerator() {
   const [seed, setSeed] = useState(-1);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
 
-  const { data: apiKeysData } = useQuery({
-    queryKey: ["/api/api-keys"],
-    queryFn: () => apiRequest("GET", "/api/api-keys"),
-  });
+
 
   const { data: apiStatus } = useQuery({
     queryKey: ["/api/settings/status"],
   });
 
-  const apiKeys = Array.isArray(apiKeysData) ? apiKeysData : [];
+
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -73,8 +70,8 @@ export default function ImageGenerator() {
   });
 
   // Pollinations API key is optional (works without it but with rate limits)
-  const hasApiKey = generator === "pollinations" 
-    ? true 
+  const hasApiKey = generator === "pollinations"
+    ? true
     : (apiStatus as any)?.[generator === "seedream" ? "freepik" : generator] === true;
 
   return (

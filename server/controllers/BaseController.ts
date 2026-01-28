@@ -23,7 +23,7 @@ export abstract class BaseController {
         res: Response,
         context: string,
         projectId?: string
-    ): void {
+    ): Response {
         // Log the error
         logError(context, 'Request failed', error, undefined, projectId);
 
@@ -31,7 +31,7 @@ export abstract class BaseController {
         const statusCode = this.getStatusCode(error);
         const message = this.getErrorMessage(error);
 
-        res.status(statusCode).json({ error: message });
+        return res.status(statusCode).json({ error: message });
     }
 
     /**

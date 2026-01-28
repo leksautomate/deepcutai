@@ -5,11 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { VideoManifest, Scene } from "@shared/schema";
+import type { VideoManifest } from "@shared/schema";
 
 interface VideoPreviewProps {
   manifest?: VideoManifest;
@@ -30,10 +29,10 @@ export function VideoPreview({ manifest, projectId, onUpdateManifest }: VideoPre
   const regenerateImageMutation = useMutation({
     mutationFn: async ({ sceneId, sceneIndex }: { sceneId: string; sceneIndex: number }) => {
       if (!manifest || !projectId) throw new Error("Missing manifest or project ID");
-      
+
       setRegeneratingSceneId(sceneId);
       const scene = manifest.scenes[sceneIndex];
-      
+
       const response = await apiRequest("POST", "/api/regenerate-scene-image", {
         projectId,
         sceneId,
@@ -42,7 +41,7 @@ export function VideoPreview({ manifest, projectId, onUpdateManifest }: VideoPre
         width: manifest.width,
         height: manifest.height,
       });
-      
+
       return response.json();
     },
     onSuccess: (data) => {
@@ -68,10 +67,7 @@ export function VideoPreview({ manifest, projectId, onUpdateManifest }: VideoPre
     },
   });
 
-  const getSceneStartTime = (index: number) => {
-    if (!manifest) return 0;
-    return manifest.scenes.slice(0, index).reduce((sum, s) => sum + s.durationInSeconds, 0);
-  };
+
 
   useEffect(() => {
     if (audioRef.current) {
@@ -81,7 +77,7 @@ export function VideoPreview({ manifest, projectId, onUpdateManifest }: VideoPre
 
   useEffect(() => {
     if (!manifest) return;
-    
+
     if (audioRef.current) {
       audioRef.current.pause();
     }
@@ -91,7 +87,7 @@ export function VideoPreview({ manifest, projectId, onUpdateManifest }: VideoPre
       const audio = new Audio(activeScene.audioFile);
       audioRef.current = audio;
       audio.volume = isMuted ? 0 : volume / 100;
-      
+
       audio.onended = () => {
         if (activeSceneIndex < manifest.scenes.length - 1) {
           setActiveSceneIndex(prev => prev + 1);
@@ -246,11 +242,10 @@ export function VideoPreview({ manifest, projectId, onUpdateManifest }: VideoPre
                 <button
                   key={scene.id}
                   onClick={() => setActiveSceneIndex(index)}
-                  className={`flex-shrink-0 rounded-md overflow-hidden border-2 transition-all ${
-                    index === activeSceneIndex
-                      ? "border-primary ring-2 ring-primary/20"
-                      : "border-transparent hover:border-muted-foreground/20"
-                  }`}
+                  className={`flex-shrink-0 rounded-md overflow-hidden border-2 transition-all ${index === activeSceneIndex
+                    ? "border-primary ring-2 ring-primary/20"
+                    : "border-transparent hover:border-muted-foreground/20"
+                    }`}
                   data-testid={`scene-thumbnail-${index}`}
                 >
                   <div className="w-32 aspect-video bg-muted flex items-center justify-center relative">
@@ -287,11 +282,10 @@ export function VideoPreview({ manifest, projectId, onUpdateManifest }: VideoPre
               {manifest.scenes.map((scene, index) => (
                 <div
                   key={scene.id}
-                  className={`w-full text-left p-3 rounded-md transition-all ${
-                    index === activeSceneIndex
-                      ? "bg-primary/10 border border-primary/20"
-                      : "hover-elevate"
-                  }`}
+                  className={`w-full text-left p-3 rounded-md transition-all ${index === activeSceneIndex
+                    ? "bg-primary/10 border border-primary/20"
+                    : "hover-elevate"
+                    }`}
                 >
                   <button
                     onClick={() => setActiveSceneIndex(index)}

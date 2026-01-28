@@ -39,8 +39,8 @@ export class SettingsController extends BaseController {
     /**
      * Get application settings
      */
-    getSettings(req: Request, res: Response) {
-        res.json(getAppSettings());
+    getSettings(_req: Request, res: Response) {
+        return res.json(getAppSettings());
     }
 
     /**
@@ -50,9 +50,9 @@ export class SettingsController extends BaseController {
         try {
             const { customVoices, sceneSettings, imageStyleSettings, transitionSettings, scriptProvider } = this.validateBody(settingsUpdateSchema, req.body);
             updateAppSettings({ customVoices, sceneSettings, imageStyleSettings, transitionSettings, scriptProvider });
-            res.json(getAppSettings());
+            return res.json(getAppSettings());
         } catch (error) {
-            this.handleError(error, res, 'SettingsController.updateSettings');
+            return this.handleError(error, res, 'SettingsController.updateSettings');
         }
     }
 
@@ -72,7 +72,7 @@ export class SettingsController extends BaseController {
                 return !!getSecret(secretName, envVar) || apiKeysData.some(k => k.provider === provider && k.isActive === true);
             };
 
-            res.json({
+            return res.json({
                 gemini: hasKey("gemini", "GEMINI_API_KEY"),
                 groq: hasKey("groq", "GROQ_API_KEY"),
                 speechify: hasKey("speechify", "SPEECHIFY_API_KEY"),
@@ -83,7 +83,7 @@ export class SettingsController extends BaseController {
                 inworld: hasKey("inworld", "INWORLD_API_KEY"),
             });
         } catch (error) {
-            this.handleError(error, res, 'SettingsController.getApiKeysStatus');
+            return this.handleError(error, res, 'SettingsController.getApiKeysStatus');
         }
     }
 
@@ -149,7 +149,7 @@ export class SettingsController extends BaseController {
                 return !!process.env[envVar] || apiKeysData.some(k => k.provider === provider && k.isActive === true);
             };
 
-            res.json({
+            return res.json({
                 success: true,
                 status: {
                     gemini: hasKey("gemini", "GEMINI_API_KEY"),
@@ -163,7 +163,7 @@ export class SettingsController extends BaseController {
                 },
             });
         } catch (error) {
-            this.handleError(error, res, 'SettingsController.updateApiKeys');
+            return this.handleError(error, res, 'SettingsController.updateApiKeys');
         }
     }
 }

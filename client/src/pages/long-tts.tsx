@@ -51,7 +51,7 @@ export default function LongTTS() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   // Fetch voices
-  const { data: voicesData, isLoading: voicesLoading } = useQuery({
+  const { data: voicesData } = useQuery({
     queryKey: ["/api/long-tts/voices"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/long-tts/voices");

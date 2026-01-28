@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, FileText, Image, Play, Video, Loader2, RefreshCw, Save } from "lucide-react";
 import type { VideoProject, VideoManifest } from "@shared/schema";
@@ -67,7 +66,7 @@ export default function ProjectEditor() {
     },
   });
 
-  const handleAssetsGenerated = useCallback((newProjectId: string, newManifest: VideoManifest) => {
+  const handleAssetsGenerated = useCallback((_newProjectId: string, newManifest: VideoManifest) => {
     setManifest(newManifest);
     queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
     queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
@@ -110,9 +109,9 @@ export default function ProjectEditor() {
       <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex items-center justify-between gap-4 p-4 max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setLocation("/my-videos")}
               data-testid="button-back"
             >
@@ -136,8 +135,8 @@ export default function ProjectEditor() {
           </div>
           <div className="flex items-center gap-2">
             {hasChanges && (
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 onClick={() => saveMutation.mutate()}
                 disabled={saveMutation.isPending}
                 data-testid="button-save"
@@ -177,7 +176,7 @@ export default function ProjectEditor() {
             </TabsList>
 
             <TabsContent value="preview">
-              <VideoPreview 
+              <VideoPreview
                 manifest={manifest}
                 projectId={projectId}
                 onUpdateManifest={setManifest}
@@ -238,8 +237,8 @@ export default function ProjectEditor() {
             </TabsContent>
 
             <TabsContent value="render">
-              <RenderPanel 
-                manifest={manifest} 
+              <RenderPanel
+                manifest={manifest}
                 projectId={projectId}
                 onRenderComplete={handleRenderComplete}
               />

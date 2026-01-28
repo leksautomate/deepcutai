@@ -62,13 +62,13 @@ export class ProjectController extends BaseController {
     // Project Management (CRUD)
     // ==========================================
 
-    async getAllProjects(req: Request, res: Response) {
+    async getAllProjects(_req: Request, res: Response) {
         try {
             // TODO: Filter by userId if we want multi-user isolation
             const projects = await storage.getAllVideoProjects();
-            res.json(projects);
+            return res.json(projects);
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.getAllProjects');
+            return this.handleError(error, res, 'ProjectController.getAllProjects');
         }
     }
 
@@ -78,9 +78,9 @@ export class ProjectController extends BaseController {
             if (!project) {
                 return res.status(404).json({ error: "Project not found" });
             }
-            res.json(project);
+            return res.json(project);
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.getProject');
+            return this.handleError(error, res, 'ProjectController.getProject');
         }
     }
 
@@ -97,9 +97,9 @@ export class ProjectController extends BaseController {
                 fs.rmSync(projectDir, { recursive: true, force: true });
             }
 
-            res.json({ success: true });
+            return res.json({ success: true });
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.deleteProject');
+            return this.handleError(error, res, 'ProjectController.deleteProject');
         }
     }
 
@@ -162,12 +162,12 @@ export class ProjectController extends BaseController {
 
             this.logInfo("API", `Project imported: ${project.id}`, { folderId, sceneCount: manifest.scenes?.length });
 
-            res.json({
+            return res.json({
                 success: true,
                 project,
             });
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.importProject');
+            return this.handleError(error, res, 'ProjectController.importProject');
         }
     }
 
@@ -216,14 +216,14 @@ export class ProjectController extends BaseController {
                 }
             }
 
-            res.json({
+            return res.json({
                 title: result.title,
                 script: result.script,
                 scenes: result.scenes,
                 provider: usedProvider,
             });
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.generateScript');
+            return this.handleError(error, res, 'ProjectController.generateScript');
         }
     }
 
@@ -419,7 +419,7 @@ export class ProjectController extends BaseController {
                 outputPath: null,
             });
 
-            res.json({
+            return res.json({
                 projectId: project.id,
                 manifest,
                 assetsGenerated: {
@@ -429,7 +429,7 @@ export class ProjectController extends BaseController {
                 },
             });
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.generateAssets');
+            return this.handleError(error, res, 'ProjectController.generateAssets');
         }
     }
 
@@ -489,7 +489,7 @@ export class ProjectController extends BaseController {
                 });
             }
 
-            res.json({
+            return res.json({
                 success: true,
                 outputUrl: outputPath,
                 projectId: outputId,
@@ -497,7 +497,7 @@ export class ProjectController extends BaseController {
                 message: "Video rendered successfully.",
             });
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.renderVideo');
+            return this.handleError(error, res, 'ProjectController.renderVideo');
         }
     }
 
@@ -519,12 +519,12 @@ export class ProjectController extends BaseController {
 
             if (result.success) {
                 await storage.updateVideoProject(req.params.id, { thumbnailPath });
-                res.json({ success: true, thumbnailPath });
+                return res.json({ success: true, thumbnailPath });
             } else {
-                res.status(500).json({ error: result.error });
+                return res.status(500).json({ error: result.error });
             }
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.generateThumbnail');
+            return this.handleError(error, res, 'ProjectController.generateThumbnail');
         }
     }
 
@@ -562,12 +562,12 @@ export class ProjectController extends BaseController {
             if (imageResult.success) {
                 const thumbnailPath = `/assets/${req.params.id}/${thumbnailFilename}`;
                 await storage.updateVideoProject(req.params.id, { thumbnailPath });
-                res.json({ success: true, thumbnailPath });
+                return res.json({ success: true, thumbnailPath });
             } else {
-                res.status(500).json({ error: imageResult.error });
+                return res.status(500).json({ error: imageResult.error });
             }
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.generateAiThumbnail');
+            return this.handleError(error, res, 'ProjectController.generateAiThumbnail');
         }
     }
 
@@ -584,12 +584,12 @@ export class ProjectController extends BaseController {
             const result = await concatenateVideos(videoPaths, outputPath);
 
             if (result.success) {
-                res.json({ success: true, outputPath: result.outputPath });
+                return res.json({ success: true, outputPath: result.outputPath });
             } else {
-                res.status(500).json({ error: result.error });
+                return res.status(500).json({ error: result.error });
             }
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.concatenateVideos');
+            return this.handleError(error, res, 'ProjectController.concatenateVideos');
         }
     }
 
@@ -613,9 +613,9 @@ export class ProjectController extends BaseController {
             const chapters = generateChapters(manifest.scenes, sceneDurations);
 
             await storage.updateVideoProject(req.params.id, { chapters: chapters });
-            res.json(chapters);
+            return res.json(chapters);
         } catch (error) {
-            this.handleError(error, res, 'ProjectController.getChapters');
+            return this.handleError(error, res, 'ProjectController.getChapters');
         }
     }
 }

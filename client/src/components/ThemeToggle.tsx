@@ -1,4 +1,4 @@
-import { Monitor, Moon, Sun, Terminal, Cpu, Code2 } from "lucide-react";
+import { Moon, Sun, Terminal, Cpu, Code2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
