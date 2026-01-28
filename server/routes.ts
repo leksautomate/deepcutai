@@ -77,6 +77,7 @@ export async function registerRoutes(
   // Generation
   app.post("/api/generate-script", requireAuth, projectController.generateScript.bind(projectController));
   app.post("/api/generate-assets", requireAuth, projectController.generateAssets.bind(projectController));
+  app.post("/api/generate-background", requireAuth, projectController.generateAssetsBackground.bind(projectController));
   app.post("/api/render-video", requireAuth, projectController.renderVideo.bind(projectController));
 
   // Post-processing

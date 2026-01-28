@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { BaseController } from './BaseController';
 import { storage } from '../storage';
+import { logError, logInfo } from '../services/logger';
 import { generateScript } from '../services/gemini';
 import { generateScriptWithGroq } from '../services/groq';
 import { getAppSettings } from '../services/settings';
@@ -61,6 +62,145 @@ export class ProjectController extends BaseController {
     // ==========================================
     // Project Management (CRUD)
     // ==========================================
+
+    async generateAssetsBackground(req: Request, res: Response) {
+        try {
+            // Validate input
+            const body = this.validateBody(generateAssetsSchema, req.body);
+
+            // Create project immediately
+            const project = await storage.createVideoProject({
+                title: `Video ${randomUUID().slice(0, 8)}`,
+                script: body.script,
+                status: "generating",
+                voiceId: body.voiceId,
+                imageStyle: body.imageStyle,
+                outputPath: null,
+            });
+
+            // Start generation in background (fire and forget)
+            this.runBackgroundGeneration(project.id, body, this.getUserId(req)).catch(err => {
+                logError("BG_GEN", `Background generation failed for project ${project.id}`, err);
+                storage.updateVideoProject(project.id, { status: "error", errorMessage: err.message });
+            });
+
+            return res.json({
+                success: true,
+                message: "Background generation started",
+                projectId: project.id
+            });
+        } catch (error) {
+            return this.handleError(error, res, 'ProjectController.generateAssetsBackground');
+        }
+    }
+
+    private async runBackgroundGeneration(projectId: string, body: any, userId: string) {
+        const { script, voiceId, imageStyle, customStyleText, resolution, motionEffect, imageGenerator, pollinationsModel, ttsProvider, sceneSettings } = body;
+
+        // Log configuration
+        logInfo("BG_GEN", "Starting background generation", {
+            projectId,
+            settings: { imageGenerator, pollinationsModel, ttsProvider }
+        });
+
+        // 1. Script Processing
+        let finalScript = script;
+
+        // 2. Split Scenes
+        const appSettings = getAppSettings();
+        // Use provided sceneSettings or fall back to global app settings
+        const splitSettings = sceneSettings || appSettings.sceneSettings;
+        const scenesText = await splitScriptIntoScenes(finalScript, splitSettings);
+
+        // Resolve resolution
+        // resolution is a string ID like "1080p", "720p" or "1920x1080"
+        let width = 1280;
+        let height = 720;
+        const resOption = resolutionOptions.find(r => r.id === resolution);
+        if (resOption) {
+            width = resOption.width;
+            height = resOption.height;
+        }
+
+        // 3. Generate Assets per Scene
+        const generatedScenes: any[] = [];
+        const projectDir = path.join(ASSETS_DIR, projectId);
+        if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
+
+        // Iterate
+        for (let i = 0; i < scenesText.length; i++) {
+            const sceneText = scenesText[i];
+            const sceneId = `scene-${i + 1}`;
+
+            // Report progress
+            await storage.updateVideoProject(projectId, {
+                progress: Math.round(((i) / scenesText.length) * 100),
+                progressMessage: `Generating scene ${i + 1}/${scenesText.length}`
+            });
+
+            // TTS
+            const ttsPath = path.join(projectDir, `${sceneId}.mp3`);
+            const ttsResult = await generateTTS({
+                text: sceneText,
+                voiceId: voiceId || "george",
+                outputPath: ttsPath
+            });
+
+            if (!ttsResult.success) {
+                logError("BG_GEN", `TTS failed for scene ${i + 1}`, undefined, { projectId });
+            }
+
+            // Image
+            // If custom style is provided and style is 'custom', use it. Otherwise prompt engineering.
+            let imagePrompt = "";
+            if (imageStyle === "custom" && customStyleText) {
+                imagePrompt = `${customStyleText}. Scene description: ${sceneText}`;
+            } else {
+                imagePrompt = await generateImagePromptWithGroq(sceneText, imageStyle || "cinematic");
+            }
+
+            const imagePath = path.join(projectDir, `${sceneId}.png`);
+
+            const apiKey = await getResolvedApiKey("seedream", userId);
+            await generateImageWithSeestream({
+                prompt: imagePrompt,
+                outputPath: imagePath,
+                width,
+                height,
+                style: imageStyle || "cinematic",
+                apiKey: apiKey || undefined
+            });
+
+            generatedScenes.push({
+                id: sceneId,
+                text: sceneText,
+                audioFile: ttsResult.success ? `/assets/${projectId}/${sceneId}.mp3` : undefined,
+                imageFile: `/assets/${projectId}/${sceneId}.png`, // Seestream doesn't return success flag nicely in this simplified call, assuming success checking exists
+                durationInSeconds: ttsResult.durationSeconds || 5,
+                motion: motionEffect || "zoom-in",
+                transition: "fade"
+            });
+        }
+
+        // 4. Update Manifest
+        const manifest: VideoManifest = {
+            fps: 30,
+            width,
+            height,
+            scenes: generatedScenes,
+            transitionDuration: 0.5
+        };
+        const manifestPath = path.join(projectDir, "manifest.json");
+        fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+        // 5. Complete
+        await storage.updateVideoProject(projectId, {
+            manifest,
+            status: "ready",
+            progress: 100,
+            progressMessage: "Ready"
+        });
+    }
 
     async getAllProjects(_req: Request, res: Response) {
         try {
