@@ -52,7 +52,7 @@ export async function generateInworldTTS(options: InworldTTSOptions): Promise<In
       body: JSON.stringify({
         text: text,
         voiceId: voiceId || "Dennis",
-        modelId: "inworld-tts-1",
+        modelId: "inworld-tts-1.5-max",
         timestampType: "WORD",
       }),
     });
