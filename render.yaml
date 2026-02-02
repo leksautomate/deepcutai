@@ -1,0 +1,37 @@
+# Render Blueprint - Infrastructure as Code
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Web Service - DeepCut AI Backend + Frontend
+  - type: web
+    name: deepcut-ai
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/setup/status
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: deepcut-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      # Add your API keys in Render dashboard:
+      # - GEMINI_API_KEY
+      # - GROQ_API_KEY
+      # - SPEECHIFY_API_KEY
+      # - INWORLD_API_KEY
+      # - FREEPIK_API_KEY
+      # - WAVESPEED_API_KEY
+      # - RUNPOD_API_KEY
+      # - POLLINATIONS_API_KEY (optional)
+
+databases:
+  # PostgreSQL Database (Free tier: 90 days, then $7/month)
+  - name: deepcut-db
+    plan: free
+    databaseName: deepcutai
+    user: deepcut
