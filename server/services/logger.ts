@@ -186,20 +186,34 @@ export function clearOldLogs(maxAgeHours: number = 168) {
 
   const now = Date.now();
   const maxAge = maxAgeHours * 60 * 60 * 1000;
+  const maxFileSize = 50 * 1024 * 1024; // 50MB max
 
   for (const logFile of [ERROR_LOG_FILE, INFO_LOG_FILE]) {
     if (!fs.existsSync(logFile)) continue;
 
-    const content = fs.readFileSync(logFile, "utf-8");
-    const lines = content.split("\n").filter(line => {
-      if (!line.trim()) return false;
-      const match = line.match(/^\[([^\]]+)\]/);
-      if (!match) return true;
+    try {
+      const stats = fs.statSync(logFile);
+      
+      // If file is too large, just truncate it
+      if (stats.size > maxFileSize) {
+        fs.writeFileSync(logFile, `[${new Date().toISOString()}] Log file was truncated due to size\n`);
+        continue;
+      }
 
-      const logTime = new Date(match[1]).getTime();
-      return now - logTime < maxAge;
-    });
+      const content = fs.readFileSync(logFile, "utf-8");
+      const lines = content.split("\n").filter(line => {
+        if (!line.trim()) return false;
+        const match = line.match(/^\[([^\]]+)\]/);
+        if (!match) return true;
 
-    fs.writeFileSync(logFile, lines.join("\n") + "\n");
+        const logTime = new Date(match[1]).getTime();
+        return now - logTime < maxAge;
+      });
+
+      fs.writeFileSync(logFile, lines.join("\n") + "\n");
+    } catch (error) {
+      // If any error, just truncate the file
+      fs.writeFileSync(logFile, `[${new Date().toISOString()}] Log file was reset due to error\n`);
+    }
   }
 }
