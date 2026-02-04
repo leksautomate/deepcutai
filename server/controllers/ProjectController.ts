@@ -122,7 +122,7 @@ export class ProjectController extends BaseController {
         // Log configuration
         logInfo("BG_GEN", "Starting background generation", {
             projectId,
-            settings: { imageGenerator, pollinationsModel, ttsProvider }
+            settings: { imageGenerator, pollinationsModel, ttsProvider, captionStyle }
         });
 
         // 1. Script Processing

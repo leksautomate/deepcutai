@@ -408,6 +408,7 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
 
   // Burn captions if style is set
   const captionStyle = manifest.captionStyle;
+  logInfo("Render", `Caption style check: ${captionStyle || "undefined"}`);
   if (captionStyle && captionStyle !== "none") {
     logInfo("Render", `Burning captions with style: ${captionStyle}`);
     

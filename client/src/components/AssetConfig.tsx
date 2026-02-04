@@ -87,7 +87,7 @@ export function AssetConfig({
   const [maxDuration, setMaxDuration] = useState<number | undefined>(undefined);
   const [selectedSavedStyle, setSelectedSavedStyle] = useState<string>("");
   const [newStyleName, setNewStyleName] = useState<string>("");
-  const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>("none");
+  const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>("classic");
 
   // Fetch global settings to use as defaults
   const { data: globalSettings } = useQuery<{
