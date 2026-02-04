@@ -406,6 +406,63 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
     return { success: false, error: concatResult.error };
   }
 
+  // Burn captions if style is set
+  const captionStyle = manifest.captionStyle;
+  if (captionStyle && captionStyle !== "none") {
+    logInfo("Render", `Burning captions with style: ${captionStyle}`);
+    
+    try {
+      const { saveAssFile } = await import("./captions");
+      
+      // Prepare scenes with durations for caption generation
+      const captionScenes = scenes.map((scene, i) => ({
+        text: scene.text || "",
+        duration: sceneDurations[i] || scene.durationInSeconds || 5,
+      }));
+      
+      const assPath = saveAssFile(projectDir, captionScenes, captionStyle, width, height);
+      
+      // Create temp output path for captioned video
+      const captionedOutputPath = fullOutputPath.replace(".mp4", "-captioned.mp4");
+      
+      const subtitleArgs = [
+        "-y",
+        "-i", fullOutputPath,
+        "-vf", `ass=${assPath}`,
+        "-c:v", "libx264",
+        "-c:a", "copy",
+        "-b:v", bitrate,
+        "-preset", "medium",
+        "-profile:v", "high",
+        "-level", "4.2",
+        "-movflags", "+faststart",
+        captionedOutputPath,
+      ];
+      
+      const subtitleResult = await runFFmpeg(subtitleArgs);
+      
+      // Cleanup ASS file
+      if (fs.existsSync(assPath)) {
+        fs.unlinkSync(assPath);
+      }
+      
+      if (subtitleResult.success && fs.existsSync(captionedOutputPath)) {
+        // Replace original with captioned version
+        fs.unlinkSync(fullOutputPath);
+        fs.renameSync(captionedOutputPath, fullOutputPath);
+        logInfo("Render", "Captions burned successfully");
+      } else {
+        // Keep original video without captions
+        if (fs.existsSync(captionedOutputPath)) {
+          fs.unlinkSync(captionedOutputPath);
+        }
+        logWarning("Render", `Caption burn failed, video saved without captions: ${subtitleResult.error}`);
+      }
+    } catch (captionError) {
+      logWarning("Render", `Caption processing error, video saved without captions`, { error: captionError });
+    }
+  }
+
   logInfo("Render", `Video rendered successfully: ${outputPath}`);
   return { success: true, outputPath };
 }

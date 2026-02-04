@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Video, Download, Loader2, Check, AlertCircle, FileVideo, Clock, HardDrive } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Video, Download, Loader2, Check, AlertCircle, FileVideo, Clock, HardDrive, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -10,8 +10,44 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { VideoManifest } from "@shared/schema";
-import { exportQualities } from "@shared/schema";
+import type { VideoManifest, CaptionStyleId } from "@shared/schema";
+import { exportQualities, captionStyles } from "@shared/schema";
+
+const captionStyleLabels: Record<CaptionStyleId, { name: string; preview: React.CSSProperties }> = {
+  none: { name: "No Captions", preview: {} },
+  classic: { 
+    name: "Classic White", 
+    preview: { color: "#fff", textShadow: "2px 2px 4px #000, -1px -1px 2px #000" } 
+  },
+  "bold-yellow": { 
+    name: "Bold Yellow", 
+    preview: { color: "#FFFF00", fontWeight: "bold", textShadow: "3px 3px 6px #000" } 
+  },
+  minimal: { 
+    name: "Minimal", 
+    preview: { color: "#fff", fontWeight: "normal" } 
+  },
+  netflix: { 
+    name: "Netflix Style", 
+    preview: { color: "#fff", fontWeight: "bold", backgroundColor: "rgba(0,0,0,0.7)", padding: "4px 8px" } 
+  },
+  karaoke: { 
+    name: "Karaoke Pop", 
+    preview: { color: "#00FF00", fontWeight: "bold", textShadow: "2px 2px 0 #FF00FF, -2px -2px 0 #FF00FF" } 
+  },
+  documentary: { 
+    name: "Documentary", 
+    preview: { color: "#fff", fontStyle: "italic", textShadow: "1px 1px 3px #404040" } 
+  },
+  tiktok: { 
+    name: "TikTok Viral", 
+    preview: { color: "#fff", fontWeight: "900", textShadow: "4px 4px 0 #000, -2px -2px 0 #000" } 
+  },
+  boxed: { 
+    name: "Boxed", 
+    preview: { color: "#fff", fontWeight: "bold", backgroundColor: "rgba(0,0,0,0.8)", padding: "6px 12px" } 
+  },
+};
 
 interface RenderPanelProps {
   manifest?: VideoManifest;
@@ -31,7 +67,14 @@ export function RenderPanel({ manifest, projectId, onRenderComplete }: RenderPan
   const [currentStep, setCurrentStep] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [exportQuality, setExportQuality] = useState<string>("1080p");
+  const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>("none");
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (manifest?.captionStyle) {
+      setCaptionStyle(manifest.captionStyle);
+    }
+  }, [manifest?.captionStyle]);
 
   const selectedQuality = exportQualities.find(q => q.id === exportQuality) || exportQualities[1];
 
@@ -42,8 +85,13 @@ export function RenderPanel({ manifest, projectId, onRenderComplete }: RenderPan
       setCurrentStep("prepare");
       setRenderProgress(10);
 
+      const manifestWithCaptions = {
+        ...manifest,
+        captionStyle,
+      };
+
       const response = await apiRequest("POST", "/api/render-video", {
-        manifest,
+        manifest: manifestWithCaptions,
         projectId,
         exportQuality,
       });
@@ -122,6 +170,46 @@ export function RenderPanel({ manifest, projectId, onRenderComplete }: RenderPan
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="caption-style" className="flex items-center gap-2">
+                <Type className="w-4 h-4" />
+                Caption Style
+              </Label>
+              <Select
+                value={captionStyle}
+                onValueChange={(v) => setCaptionStyle(v as CaptionStyleId)}
+                disabled={renderMutation.isPending}
+              >
+                <SelectTrigger className="mt-1.5" data-testid="select-caption-style">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {captionStyles.map((styleId) => (
+                    <SelectItem key={styleId} value={styleId}>
+                      {captionStyleLabels[styleId]?.name || styleId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {captionStyle !== "none" && (
+                <div className="mt-3 p-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg border">
+                  <p className="text-xs text-muted-foreground mb-2">Preview:</p>
+                  <div className="text-center py-4">
+                    <span 
+                      style={{ 
+                        fontSize: "18px",
+                        fontFamily: "Arial, sans-serif",
+                        ...captionStyleLabels[captionStyle]?.preview 
+                      }}
+                    >
+                      Sample caption text
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">

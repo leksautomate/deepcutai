@@ -10,6 +10,10 @@ export type MotionEffect = typeof motionEffects[number];
 export const transitionEffects = ["none", "fade", "dissolve", "wipe-left", "wipe-right", "wipe-up", "wipe-down"] as const;
 export type TransitionEffect = typeof transitionEffects[number];
 
+// Caption style types
+export const captionStyles = ["none", "classic", "bold-yellow", "minimal", "netflix", "karaoke", "documentary", "tiktok", "boxed"] as const;
+export type CaptionStyleId = typeof captionStyles[number];
+
 // Video status
 export const videoStatuses = ["draft", "generating", "ready", "error"] as const;
 export type VideoStatus = typeof videoStatuses[number];
@@ -34,6 +38,7 @@ export const videoManifestSchema = z.object({
   height: z.number().default(720),
   scenes: z.array(sceneSchema),
   transitionDuration: z.number().default(0.5),
+  captionStyle: z.enum(captionStyles).default("none"),
 });
 
 export type VideoManifest = z.infer<typeof videoManifestSchema>;
