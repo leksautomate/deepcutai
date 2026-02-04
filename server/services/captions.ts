@@ -152,22 +152,18 @@ function formatAssTime(seconds: number): string {
   return `${h}:${m.toString().padStart(2, "0")}:${s.padStart(5, "0")}`;
 }
 
-function splitTextIntoLines(text: string, maxCharsPerLine: number = 40): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let currentLine = "";
-
-  for (const word of words) {
-    if (currentLine.length + word.length + 1 <= maxCharsPerLine) {
-      currentLine += (currentLine ? " " : "") + word;
-    } else {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-    }
+// Split text into max 2 lines for display (no dashes added)
+function splitIntoTwoLines(text: string): string {
+  const words = text.split(/\s+/).filter(w => w.trim());
+  if (words.length <= 4) {
+    // Short text: display on one line
+    return words.join(" ");
   }
-  if (currentLine) lines.push(currentLine);
-
-  return lines;
+  // Split roughly in half for two lines
+  const midpoint = Math.ceil(words.length / 2);
+  const line1 = words.slice(0, midpoint).join(" ");
+  const line2 = words.slice(midpoint).join(" ");
+  return `${line1}\\N${line2}`;
 }
 
 // Split text into chunks of maxWords (8-10 words per caption)
@@ -249,9 +245,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       const chunk = chunks[i].trim();
       if (!chunk) continue;
 
-      // For very long words, split into lines (rare edge case)
-      const lines = splitTextIntoLines(chunk, 50);
-      const displayText = lines.join("\\N");
+      // Display on one line or split to two lines (no dashes)
+      const displayText = splitIntoTwoLines(chunk);
 
       const startTime = currentTime + i * timePerChunk;
       const endTime = startTime + timePerChunk - 0.05;
