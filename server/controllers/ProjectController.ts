@@ -321,7 +321,7 @@ export class ProjectController extends BaseController {
             height: resHeight,
             scenes: generatedScenes,
             transitionDuration: 0.5,
-            captionStyle: captionStyle || "none",
+            captionStyle: captionStyle || "classic",
         };
         const manifestPath = path.join(projectDir, "manifest.json");
         fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
