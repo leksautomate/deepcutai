@@ -174,8 +174,29 @@ export function generateAssSubtitles(
   scenes: { text: string; duration: number }[],
   style: CaptionStyle,
   width: number = 1920,
-  height: number = 1080
+  height: number = 1080,
+  position?: string
 ): string {
+  // Map position to ASS alignment value (default: bottom-center = 2)
+  const positionToAlignment: Record<string, number> = {
+    "bottom-left": 1,
+    "bottom-center": 2,
+    "bottom-right": 3,
+    "middle-center": 5,
+    "top-left": 7,
+    "top-center": 8,
+    "top-right": 9,
+  };
+  const alignment = position ? (positionToAlignment[position] || style.alignment) : style.alignment;
+  
+  // Adjust marginV based on position
+  let marginV = style.marginV;
+  if (position?.startsWith("top")) {
+    marginV = 50; // margin from top
+  } else if (position?.startsWith("middle")) {
+    marginV = Math.floor(height / 4); // approximate center margin
+  }
+
   const header = `[Script Info]
 Title: DeepCut AI Captions
 ScriptType: v4.00+
@@ -185,7 +206,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${style.fontName},${style.fontSize},${style.primaryColor},&H000000FF,${style.outlineColor},${style.backColor},${style.bold ? -1 : 0},${style.italic ? -1 : 0},0,0,100,100,0,0,${style.backColor !== "&H00000000" ? 3 : 1},${style.outline},${style.shadow},${style.alignment},20,20,${style.marginV},1
+Style: Default,${style.fontName},${style.fontSize},${style.primaryColor},&H000000FF,${style.outlineColor},${style.backColor},${style.bold ? -1 : 0},${style.italic ? -1 : 0},0,0,100,100,0,0,${style.backColor !== "&H00000000" ? 3 : 1},${style.outline},${style.shadow},${alignment},20,20,${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -237,10 +258,11 @@ export function saveAssFile(
   scenes: { text: string; duration: number }[],
   styleId: string,
   width: number = 1920,
-  height: number = 1080
+  height: number = 1080,
+  position?: string
 ): string {
   const style = getCaptionStyle(styleId);
-  const assContent = generateAssSubtitles(scenes, style, width, height);
+  const assContent = generateAssSubtitles(scenes, style, width, height, position);
   
   const assPath = path.join(projectDir, "captions.ass");
   fs.writeFileSync(assPath, assContent, "utf-8");

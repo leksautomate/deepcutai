@@ -322,6 +322,7 @@ export class ProjectController extends BaseController {
             scenes: generatedScenes,
             transitionDuration: 0.5,
             captionStyle: captionStyle || "classic",
+            captionPosition: body.captionPosition || "bottom-center",
         };
         const manifestPath = path.join(projectDir, "manifest.json");
         fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
@@ -745,7 +746,8 @@ export class ProjectController extends BaseController {
                 height: resConfig.height,
                 scenes: generatedScenes,
                 transitionDuration: getAppSettings().transitionSettings.transitionDuration,
-                captionStyle: "none",
+                captionStyle: "classic",
+                captionPosition: "bottom-center",
             };
 
             const manifestPath = path.join(projectDir, "manifest.json");

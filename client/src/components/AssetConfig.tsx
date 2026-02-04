@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
-import { voiceOptions, imageStyles, resolutionOptions, type VideoManifest, motionEffects, inworldVoiceOptions, type TTSProvider, pollinationsModels, captionStyles, captionStyleLabels, type CaptionStyleId } from "@shared/schema";
+import { voiceOptions, imageStyles, resolutionOptions, type VideoManifest, motionEffects, inworldVoiceOptions, type TTSProvider, pollinationsModels, captionStyles, captionStyleLabels, type CaptionStyleId, captionPositions, captionPositionLabels, type CaptionPosition } from "@shared/schema";
 
 interface CustomImageStyle {
   id: string;
@@ -88,6 +88,7 @@ export function AssetConfig({
   const [selectedSavedStyle, setSelectedSavedStyle] = useState<string>("");
   const [newStyleName, setNewStyleName] = useState<string>("");
   const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>("classic");
+  const [captionPosition, setCaptionPosition] = useState<CaptionPosition>("bottom-center");
 
   // Fetch global settings to use as defaults
   const { data: globalSettings } = useQuery<{
@@ -260,6 +261,7 @@ export function AssetConfig({
         pollinationsModel: selectedGenerator === "pollinations" ? pollinationsModel : undefined,
         ttsProvider: selectedTtsProvider,
         captionStyle,
+        captionPosition,
         sceneSettings: {
           targetWords: effectiveTargetWords,
           maxWords: effectiveMaxWords,
@@ -794,6 +796,28 @@ export function AssetConfig({
                 </div>
               ))}
             </div>
+            {captionStyle !== "none" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Caption Position</label>
+                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                  {captionPositions.map((posId) => (
+                    <div
+                      key={posId}
+                      className={`p-2 rounded-lg border-2 cursor-pointer transition-all text-center ${
+                        captionPosition === posId
+                          ? "border-primary bg-primary/5"
+                          : "border-muted hover:border-muted-foreground/50"
+                      }`}
+                      onClick={() => setCaptionPosition(posId)}
+                    >
+                      <div className="text-xs font-medium">
+                        {captionPositionLabels[posId]}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               Captions will be burned into the final video during rendering.
             </p>

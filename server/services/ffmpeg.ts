@@ -406,10 +406,10 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
     return { success: false, error: concatResult.error };
   }
 
-  // Burn captions if style is set
-  const captionStyle = manifest.captionStyle;
-  logInfo("Render", `Caption style check: ${captionStyle || "undefined"}`);
-  if (captionStyle && captionStyle !== "none") {
+  // Burn captions if style is set - default to "classic" if undefined
+  const captionStyle = manifest.captionStyle || "classic";
+  logInfo("Render", `Caption style: ${captionStyle}`);
+  if (captionStyle !== "none") {
     logInfo("Render", `Burning captions with style: ${captionStyle}`);
     
     try {
@@ -421,7 +421,8 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
         duration: sceneDurations[i] || scene.durationInSeconds || 5,
       }));
       
-      const assPath = saveAssFile(projectDir, captionScenes, captionStyle, width, height);
+      const captionPosition = manifest.captionPosition || "bottom-center";
+      const assPath = saveAssFile(projectDir, captionScenes, captionStyle, width, height, captionPosition);
       
       // Create temp output path for captioned video
       const captionedOutputPath = fullOutputPath.replace(".mp4", "-captioned.mp4");

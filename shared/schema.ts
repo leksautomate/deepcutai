@@ -14,6 +14,32 @@ export type TransitionEffect = typeof transitionEffects[number];
 export const captionStyles = ["none", "classic", "bold-yellow", "minimal", "netflix", "karaoke", "documentary", "tiktok", "boxed"] as const;
 export type CaptionStyleId = typeof captionStyles[number];
 
+// Caption position types (ASS alignment values)
+export const captionPositions = ["bottom-center", "bottom-left", "bottom-right", "top-center", "top-left", "top-right", "middle-center"] as const;
+export type CaptionPosition = typeof captionPositions[number];
+
+// Caption position labels
+export const captionPositionLabels: Record<CaptionPosition, string> = {
+  "bottom-center": "Bottom Center",
+  "bottom-left": "Bottom Left",
+  "bottom-right": "Bottom Right",
+  "top-center": "Top Center",
+  "top-left": "Top Left",
+  "top-right": "Top Right",
+  "middle-center": "Center",
+};
+
+// Map positions to ASS alignment values
+export const captionPositionToAlignment: Record<CaptionPosition, number> = {
+  "bottom-left": 1,
+  "bottom-center": 2,
+  "bottom-right": 3,
+  "middle-center": 5,
+  "top-left": 7,
+  "top-center": 8,
+  "top-right": 9,
+};
+
 // Caption style labels and preview styles
 export const captionStyleLabels: Record<CaptionStyleId, { name: string; preview: { color?: string; fontWeight?: string; fontStyle?: string; textShadow?: string; backgroundColor?: string; padding?: string } }> = {
   none: { name: "No Captions", preview: {} },
@@ -75,7 +101,8 @@ export const videoManifestSchema = z.object({
   height: z.number().default(720),
   scenes: z.array(sceneSchema),
   transitionDuration: z.number().default(0.5),
-  captionStyle: z.enum(captionStyles).default("none"),
+  captionStyle: z.enum(captionStyles).default("classic"),
+  captionPosition: z.enum(captionPositions).default("bottom-center"),
 });
 
 export type VideoManifest = z.infer<typeof videoManifestSchema>;
