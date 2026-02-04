@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useLocation } from "wouter";
-import { Mic, Image, Settings, Loader2, Sparkles, Volume2, Pause, Zap, SlidersHorizontal, Save, Trash2 } from "lucide-react";
+import { Mic, Image, Settings, Loader2, Sparkles, Volume2, Pause, Zap, SlidersHorizontal, Save, Trash2, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
-import { voiceOptions, imageStyles, resolutionOptions, type VideoManifest, motionEffects, inworldVoiceOptions, type TTSProvider, pollinationsModels } from "@shared/schema";
+import { voiceOptions, imageStyles, resolutionOptions, type VideoManifest, motionEffects, inworldVoiceOptions, type TTSProvider, pollinationsModels, captionStyles, captionStyleLabels, type CaptionStyleId } from "@shared/schema";
 
 interface CustomImageStyle {
   id: string;
@@ -87,6 +87,7 @@ export function AssetConfig({
   const [maxDuration, setMaxDuration] = useState<number | undefined>(undefined);
   const [selectedSavedStyle, setSelectedSavedStyle] = useState<string>("");
   const [newStyleName, setNewStyleName] = useState<string>("");
+  const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>("none");
 
   // Fetch global settings to use as defaults
   const { data: globalSettings } = useQuery<{
@@ -258,6 +259,13 @@ export function AssetConfig({
         imageGenerator: selectedGenerator,
         pollinationsModel: selectedGenerator === "pollinations" ? pollinationsModel : undefined,
         ttsProvider: selectedTtsProvider,
+        captionStyle,
+        sceneSettings: {
+          targetWords: effectiveTargetWords,
+          maxWords: effectiveMaxWords,
+          minDuration: effectiveMinDuration,
+          maxDuration: effectiveMaxDuration,
+        },
       });
       return response.json();
     },
@@ -742,6 +750,53 @@ export function AssetConfig({
               />
               <p className="text-xs text-muted-foreground mt-1">Maximum scene duration</p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="lg:col-span-3">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Type className="w-5 h-5" />
+            Caption Style
+          </CardTitle>
+          <CardDescription>Add captions/subtitles to your video</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {captionStyles.map((styleId) => (
+                <div
+                  key={styleId}
+                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                    captionStyle === styleId
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/50"
+                  }`}
+                  onClick={() => setCaptionStyle(styleId)}
+                >
+                  <div className="font-medium text-sm">
+                    {captionStyleLabels[styleId]?.name || styleId}
+                  </div>
+                  {styleId !== "none" && (
+                    <div className="mt-2 p-2 bg-gray-900 rounded text-center">
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          fontFamily: "Arial, sans-serif",
+                          ...captionStyleLabels[styleId]?.preview,
+                        }}
+                      >
+                        Sample
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Captions will be burned into the final video during rendering.
+            </p>
           </div>
         </CardContent>
       </Card>

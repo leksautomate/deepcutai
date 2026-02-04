@@ -11,43 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { VideoManifest, CaptionStyleId } from "@shared/schema";
-import { exportQualities, captionStyles } from "@shared/schema";
-
-const captionStyleLabels: Record<CaptionStyleId, { name: string; preview: React.CSSProperties }> = {
-  none: { name: "No Captions", preview: {} },
-  classic: { 
-    name: "Classic White", 
-    preview: { color: "#fff", textShadow: "2px 2px 4px #000, -1px -1px 2px #000" } 
-  },
-  "bold-yellow": { 
-    name: "Bold Yellow", 
-    preview: { color: "#FFFF00", fontWeight: "bold", textShadow: "3px 3px 6px #000" } 
-  },
-  minimal: { 
-    name: "Minimal", 
-    preview: { color: "#fff", fontWeight: "normal" } 
-  },
-  netflix: { 
-    name: "Netflix Style", 
-    preview: { color: "#fff", fontWeight: "bold", backgroundColor: "rgba(0,0,0,0.7)", padding: "4px 8px" } 
-  },
-  karaoke: { 
-    name: "Karaoke Pop", 
-    preview: { color: "#00FF00", fontWeight: "bold", textShadow: "2px 2px 0 #FF00FF, -2px -2px 0 #FF00FF" } 
-  },
-  documentary: { 
-    name: "Documentary", 
-    preview: { color: "#fff", fontStyle: "italic", textShadow: "1px 1px 3px #404040" } 
-  },
-  tiktok: { 
-    name: "TikTok Viral", 
-    preview: { color: "#fff", fontWeight: "900", textShadow: "4px 4px 0 #000, -2px -2px 0 #000" } 
-  },
-  boxed: { 
-    name: "Boxed", 
-    preview: { color: "#fff", fontWeight: "bold", backgroundColor: "rgba(0,0,0,0.8)", padding: "6px 12px" } 
-  },
-};
+import { exportQualities, captionStyles, captionStyleLabels } from "@shared/schema";
 
 interface RenderPanelProps {
   manifest?: VideoManifest;

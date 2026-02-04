@@ -117,7 +117,7 @@ export class ProjectController extends BaseController {
     }
 
     private async runBackgroundGeneration(projectId: string, body: any, userId: string) {
-        const { script, voiceId, imageStyle, customStyleText, resolution, motionEffect, imageGenerator, pollinationsModel, ttsProvider, sceneSettings } = body;
+        const { script, voiceId, imageStyle, customStyleText, resolution, motionEffect, imageGenerator, pollinationsModel, ttsProvider, sceneSettings, captionStyle } = body;
 
         // Log configuration
         logInfo("BG_GEN", "Starting background generation", {
@@ -320,7 +320,8 @@ export class ProjectController extends BaseController {
             width: resWidth,
             height: resHeight,
             scenes: generatedScenes,
-            transitionDuration: 0.5
+            transitionDuration: 0.5,
+            captionStyle: captionStyle || "none",
         };
         const manifestPath = path.join(projectDir, "manifest.json");
         fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
@@ -744,6 +745,7 @@ export class ProjectController extends BaseController {
                 height: resConfig.height,
                 scenes: generatedScenes,
                 transitionDuration: getAppSettings().transitionSettings.transitionDuration,
+                captionStyle: "none",
             };
 
             const manifestPath = path.join(projectDir, "manifest.json");
