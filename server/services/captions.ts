@@ -170,6 +170,19 @@ function splitTextIntoLines(text: string, maxCharsPerLine: number = 40): string[
   return lines;
 }
 
+// Split text into chunks of maxWords (8-10 words per caption)
+function splitTextByWordCount(text: string, maxWords: number = 8): string[] {
+  const words = text.split(/\s+/).filter(w => w.trim());
+  const chunks: string[] = [];
+  
+  for (let i = 0; i < words.length; i += maxWords) {
+    const chunk = words.slice(i, i + maxWords).join(" ");
+    if (chunk) chunks.push(chunk);
+  }
+  
+  return chunks;
+}
+
 export function generateAssSubtitles(
   scenes: { text: string; duration: number }[],
   style: CaptionStyle,
@@ -214,6 +227,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
   let currentTime = 0;
   const events: string[] = [];
+  const MAX_WORDS_PER_CAPTION = 8; // Limit captions to 8-10 words
 
   for (const scene of scenes) {
     if (!scene.text || scene.text.trim() === "") {
@@ -221,26 +235,26 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       continue;
     }
 
-    const sentences = scene.text
-      .split(/(?<=[.!?])\s+/)
-      .filter(s => s.trim());
+    // Split scene text into word-based chunks (max 8 words each)
+    const chunks = splitTextByWordCount(scene.text, MAX_WORDS_PER_CAPTION);
 
-    if (sentences.length === 0) {
+    if (chunks.length === 0) {
       currentTime += scene.duration;
       continue;
     }
 
-    const timePerSentence = scene.duration / sentences.length;
+    const timePerChunk = scene.duration / chunks.length;
 
-    for (let i = 0; i < sentences.length; i++) {
-      const sentence = sentences[i].trim();
-      if (!sentence) continue;
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i].trim();
+      if (!chunk) continue;
 
-      const lines = splitTextIntoLines(sentence, 45);
+      // For very long words, split into lines (rare edge case)
+      const lines = splitTextIntoLines(chunk, 50);
       const displayText = lines.join("\\N");
 
-      const startTime = currentTime + i * timePerSentence;
-      const endTime = startTime + timePerSentence - 0.05;
+      const startTime = currentTime + i * timePerChunk;
+      const endTime = startTime + timePerChunk - 0.05;
 
       events.push(
         `Dialogue: 0,${formatAssTime(startTime)},${formatAssTime(endTime)},Default,,0,0,0,,${displayText}`
