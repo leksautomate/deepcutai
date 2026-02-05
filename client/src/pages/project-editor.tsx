@@ -241,6 +241,7 @@ export default function ProjectEditor() {
                 manifest={manifest}
                 projectId={projectId}
                 onRenderComplete={handleRenderComplete}
+                onGoToAssets={() => setActiveTab("assets")}
               />
             </TabsContent>
           </Tabs>

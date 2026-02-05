@@ -171,7 +171,7 @@ export class ProjectController extends BaseController {
 
                 // TTS - Use the correct provider based on ttsProvider setting
                 const ttsPath = path.join(projectDir, `${sceneId}.mp3`);
-                let ttsResult;
+                let ttsResult: { audioPath: string; durationSeconds: number; success: boolean; wordAlignment?: { words: string[]; wordStartTimeSeconds: number[]; wordEndTimeSeconds: number[] } };
                 
                 const effectiveTtsProvider = ttsProvider || "inworld";
                 if (effectiveTtsProvider === "inworld") {
@@ -182,11 +182,12 @@ export class ProjectController extends BaseController {
                         outputPath: ttsPath,
                     });
                 } else {
-                    ttsResult = await generateTTS({
+                    const speechifyResult = await generateTTS({
                         text: sceneText,
                         voiceId: voiceId || "george",
                         outputPath: ttsPath,
                     });
+                    ttsResult = { ...speechifyResult, wordAlignment: undefined };
                 }
 
                 if (!ttsResult.success) {
@@ -301,7 +302,8 @@ export class ProjectController extends BaseController {
                     imageFile: imageSuccess ? `/assets/${projectId}/${sceneId}.png` : undefined,
                     durationInSeconds: ttsResult.durationSeconds || 5,
                     motion: motionEffect || "zoom-in",
-                    transition: "fade"
+                    transition: "fade",
+                    wordAlignment: ttsResult.wordAlignment,
                 });
             } catch (sceneError) {
                 const errorMsg = sceneError instanceof Error ? sceneError.message : String(sceneError);

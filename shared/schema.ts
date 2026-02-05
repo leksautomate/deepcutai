@@ -81,6 +81,15 @@ export const captionStyleLabels: Record<CaptionStyleId, { name: string; preview:
 export const videoStatuses = ["draft", "generating", "ready", "error"] as const;
 export type VideoStatus = typeof videoStatuses[number];
 
+// Word alignment for caption sync
+export const wordAlignmentSchema = z.object({
+  words: z.array(z.string()),
+  wordStartTimeSeconds: z.array(z.number()),
+  wordEndTimeSeconds: z.array(z.number()),
+});
+
+export type WordAlignment = z.infer<typeof wordAlignmentSchema>;
+
 // Scene schema for manifest
 export const sceneSchema = z.object({
   id: z.string(),
@@ -90,6 +99,7 @@ export const sceneSchema = z.object({
   durationInSeconds: z.number(),
   motion: z.enum(motionEffects).optional(),
   transition: z.enum(transitionEffects).optional(),
+  wordAlignment: wordAlignmentSchema.optional(),
 });
 
 export type Scene = z.infer<typeof sceneSchema>;

@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { logInfo } from "./logger";
+import type { WordAlignment } from "../../shared/schema";
 
 export interface CaptionStyle {
   id: string;
@@ -179,8 +180,14 @@ function splitTextByWordCount(text: string, maxWords: number = 8): string[] {
   return chunks;
 }
 
+export interface SceneWithAlignment {
+  text: string;
+  duration: number;
+  wordAlignment?: WordAlignment;
+}
+
 export function generateAssSubtitles(
-  scenes: { text: string; duration: number }[],
+  scenes: SceneWithAlignment[],
   style: CaptionStyle,
   width: number = 1920,
   height: number = 1080,
@@ -231,29 +238,62 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       continue;
     }
 
-    // Split scene text into word-based chunks (max 8 words each)
-    const chunks = splitTextByWordCount(scene.text, MAX_WORDS_PER_CAPTION);
+    // Use word alignment for precise timing if available and valid
+    const hasValidWordAlignment = scene.wordAlignment && 
+      scene.wordAlignment.words.length > 0 &&
+      scene.wordAlignment.wordStartTimeSeconds.length === scene.wordAlignment.words.length &&
+      scene.wordAlignment.wordEndTimeSeconds.length === scene.wordAlignment.words.length;
+    
+    if (hasValidWordAlignment) {
+      const { words, wordStartTimeSeconds, wordEndTimeSeconds } = scene.wordAlignment!;
+      
+      // Group words into chunks of max 8 words with precise timing
+      for (let i = 0; i < words.length; i += MAX_WORDS_PER_CAPTION) {
+        const chunkWords = words.slice(i, i + MAX_WORDS_PER_CAPTION);
+        const chunkText = chunkWords.join(" ");
+        if (!chunkText.trim()) continue;
+        
+        // Safely get timing with fallback
+        const chunkStartTime = currentTime + (wordStartTimeSeconds[i] ?? 0);
+        const lastWordIndex = Math.min(i + MAX_WORDS_PER_CAPTION - 1, words.length - 1);
+        const chunkEndTime = currentTime + (wordEndTimeSeconds[lastWordIndex] ?? scene.duration);
+        
+        // Validate timing is sane
+        if (chunkStartTime >= chunkEndTime || isNaN(chunkStartTime) || isNaN(chunkEndTime)) {
+          continue; // Skip invalid timing, fallback will handle
+        }
+        
+        const displayText = splitIntoTwoLines(chunkText);
+        
+        events.push(
+          `Dialogue: 0,${formatAssTime(chunkStartTime)},${formatAssTime(chunkEndTime)},Default,,0,0,0,,${displayText}`
+        );
+      }
+    } else {
+      // Fallback: Split scene text into word-based chunks (max 8 words each)
+      const chunks = splitTextByWordCount(scene.text, MAX_WORDS_PER_CAPTION);
 
-    if (chunks.length === 0) {
-      currentTime += scene.duration;
-      continue;
-    }
+      if (chunks.length === 0) {
+        currentTime += scene.duration;
+        continue;
+      }
 
-    const timePerChunk = scene.duration / chunks.length;
+      const timePerChunk = scene.duration / chunks.length;
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i].trim();
-      if (!chunk) continue;
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i].trim();
+        if (!chunk) continue;
 
-      // Display on one line or split to two lines (no dashes)
-      const displayText = splitIntoTwoLines(chunk);
+        // Display on one line or split to two lines (no dashes)
+        const displayText = splitIntoTwoLines(chunk);
 
-      const startTime = currentTime + i * timePerChunk;
-      const endTime = startTime + timePerChunk - 0.05;
+        const startTime = currentTime + i * timePerChunk;
+        const endTime = startTime + timePerChunk - 0.05;
 
-      events.push(
-        `Dialogue: 0,${formatAssTime(startTime)},${formatAssTime(endTime)},Default,,0,0,0,,${displayText}`
-      );
+        events.push(
+          `Dialogue: 0,${formatAssTime(startTime)},${formatAssTime(endTime)},Default,,0,0,0,,${displayText}`
+        );
+      }
     }
 
     currentTime += scene.duration;
@@ -264,7 +304,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 export function saveAssFile(
   projectDir: string,
-  scenes: { text: string; duration: number }[],
+  scenes: SceneWithAlignment[],
   styleId: string,
   width: number = 1920,
   height: number = 1080,
@@ -276,7 +316,8 @@ export function saveAssFile(
   const assPath = path.join(projectDir, "captions.ass");
   fs.writeFileSync(assPath, assContent, "utf-8");
   
-  logInfo("Captions", `Generated ASS file with style: ${style.name}`);
+  logInfo("Captions", `Generated ASS file with style: ${style.name} (word-aligned: ${scenes.some(s => s.wordAlignment)})`);
+  
   
   return assPath;
 }

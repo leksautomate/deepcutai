@@ -10,13 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { VideoManifest, CaptionStyleId } from "@shared/schema";
-import { exportQualities, captionStyles, captionStyleLabels } from "@shared/schema";
+import type { VideoManifest, CaptionStyleId, CaptionPosition } from "@shared/schema";
+import { exportQualities, captionStyles, captionStyleLabels, captionPositions, captionPositionLabels } from "@shared/schema";
 
 interface RenderPanelProps {
   manifest?: VideoManifest;
   projectId?: string;
   onRenderComplete?: (outputPath: string) => void;
+  onGoToAssets?: () => void;
 }
 
 const renderSteps = [
@@ -26,19 +27,23 @@ const renderSteps = [
   { id: "export", name: "Exporting MP4", icon: HardDrive },
 ];
 
-export function RenderPanel({ manifest, projectId, onRenderComplete }: RenderPanelProps) {
+export function RenderPanel({ manifest, projectId, onRenderComplete, onGoToAssets }: RenderPanelProps) {
   const [renderProgress, setRenderProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [exportQuality, setExportQuality] = useState<string>("1080p");
-  const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>("none");
+  const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>("classic");
+  const [captionPosition, setCaptionPosition] = useState<CaptionPosition>("bottom-center");
   const { toast } = useToast();
 
   useEffect(() => {
     if (manifest?.captionStyle) {
       setCaptionStyle(manifest.captionStyle);
     }
-  }, [manifest?.captionStyle]);
+    if (manifest?.captionPosition) {
+      setCaptionPosition(manifest.captionPosition);
+    }
+  }, [manifest?.captionStyle, manifest?.captionPosition]);
 
   const selectedQuality = exportQualities.find(q => q.id === exportQuality) || exportQualities[1];
 
@@ -52,6 +57,7 @@ export function RenderPanel({ manifest, projectId, onRenderComplete }: RenderPan
       const manifestWithCaptions = {
         ...manifest,
         captionStyle,
+        captionPosition,
       };
 
       const response = await apiRequest("POST", "/api/render-video", {
@@ -91,9 +97,14 @@ export function RenderPanel({ manifest, projectId, onRenderComplete }: RenderPan
             <AlertCircle className="w-8 h-8 text-muted-foreground" />
           </div>
           <h3 className="text-lg font-medium mb-2">No Video to Render</h3>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Please generate assets in the previous steps first
+          <p className="text-sm text-muted-foreground max-w-sm mb-4">
+            Generate voice and images first to create your video
           </p>
+          {onGoToAssets && (
+            <Button onClick={onGoToAssets} data-testid="button-go-to-assets">
+              Generate Assets
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -159,20 +170,42 @@ export function RenderPanel({ manifest, projectId, onRenderComplete }: RenderPan
               </Select>
               
               {captionStyle !== "none" && (
-                <div className="mt-3 p-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg border">
-                  <p className="text-xs text-muted-foreground mb-2">Preview:</p>
-                  <div className="text-center py-4">
-                    <span 
-                      style={{ 
-                        fontSize: "18px",
-                        fontFamily: "Arial, sans-serif",
-                        ...captionStyleLabels[captionStyle]?.preview 
-                      }}
-                    >
-                      Sample caption text
-                    </span>
+                <>
+                  <div className="mt-3 p-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg border">
+                    <p className="text-xs text-muted-foreground mb-2">Preview:</p>
+                    <div className="text-center py-4">
+                      <span 
+                        style={{ 
+                          fontSize: "18px",
+                          fontFamily: "Arial, sans-serif",
+                          ...captionStyleLabels[captionStyle]?.preview 
+                        }}
+                      >
+                        Sample caption text
+                      </span>
+                    </div>
                   </div>
-                </div>
+                  
+                  <div className="mt-3">
+                    <Label htmlFor="caption-position">Caption Position</Label>
+                    <Select
+                      value={captionPosition}
+                      onValueChange={(v) => setCaptionPosition(v as CaptionPosition)}
+                      disabled={renderMutation.isPending}
+                    >
+                      <SelectTrigger className="mt-1.5" data-testid="select-caption-position">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {captionPositions.map((posId) => (
+                          <SelectItem key={posId} value={posId}>
+                            {captionPositionLabels[posId]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
             </div>
 

@@ -415,10 +415,11 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
     try {
       const { saveAssFile } = await import("./captions");
       
-      // Prepare scenes with durations for caption generation
+      // Prepare scenes with durations and word alignment for caption generation
       const captionScenes = scenes.map((scene, i) => ({
         text: scene.text || "",
         duration: sceneDurations[i] || scene.durationInSeconds || 5,
+        wordAlignment: scene.wordAlignment,
       }));
       
       const captionPosition = manifest.captionPosition || "bottom-center";
