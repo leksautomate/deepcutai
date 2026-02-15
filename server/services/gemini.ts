@@ -92,7 +92,7 @@ BAD HOOK (REVEALS TOO MUCH):
 
 Return ONLY valid JSON with this exact structure:
 {
-  "script": "Full script with one sentence per line, paragraphs separated by blank lines",
+  "script": "Full script all together in one script",
   "scenes": ["Paragraph 1 text", "Paragraph 2 text", ...]
 }
 
