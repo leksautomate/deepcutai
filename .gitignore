@@ -53,3 +53,5 @@ attached_assets/
 *.txt
 node_modules/
 .env
+check-status.js
+data/settings.json
