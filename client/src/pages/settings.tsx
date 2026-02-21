@@ -180,8 +180,6 @@ export default function SettingsPage() {
     pollinations: "",
     inworld: "",
     whisk: "",
-    pexels: "",
-    pixabay: "",
   });
   const [showApiKeys, setShowApiKeys] = useState(false);
 
@@ -199,8 +197,6 @@ export default function SettingsPage() {
     pollinations: boolean;
     inworld: boolean;
     whisk: boolean;
-    pexels: boolean;
-    pixabay: boolean;
     whiskStatus?: {
       isValid: boolean;
       isExpired: boolean;
@@ -248,7 +244,7 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings/status"] });
-      setApiKeys({ gemini: "", groq: "", speechify: "", freepik: "", wavespeed: "", runpod: "", pollinations: "", inworld: "", whisk: "", pexels: "", pixabay: "" });
+      setApiKeys({ gemini: "", groq: "", speechify: "", freepik: "", wavespeed: "", runpod: "", pollinations: "", inworld: "", whisk: "" });
       setShowApiKeys(false);
       toast({
         title: "API Keys Updated",
@@ -733,50 +729,6 @@ export default function SettingsPage() {
                         </p>
                       </div>
                     </div>
-                    {/* Stock Video API Keys */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <Film className="w-5 h-5" />
-                          B-Roll Stock Video APIs
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="pexels-key">Pexels API Key</Label>
-                          <div className="flex gap-2 relative">
-                            <Input
-                              id="pexels-key"
-                              type={showApiKeys ? "text" : "password"}
-                              value={apiKeys.pexels}
-                              onChange={(e) => setApiKeys(prev => ({ ...prev, pexels: e.target.value }))}
-                              placeholder={apiStatus?.pexels ? "••••••••••••••••" : "Enter Pexels API key"}
-                              className={apiStatus?.pexels ? "border-green-500/50 pr-10" : "pr-10"}
-                            />
-                            {apiStatus?.pexels && (
-                              <CheckCircle className="w-4 h-4 text-green-500 absolute right-3 top-3" />
-                            )}
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="pixabay-key">Pixabay API Key</Label>
-                          <div className="flex gap-2 relative">
-                            <Input
-                              id="pixabay-key"
-                              type={showApiKeys ? "text" : "password"}
-                              value={apiKeys.pixabay}
-                              onChange={(e) => setApiKeys(prev => ({ ...prev, pixabay: e.target.value }))}
-                              placeholder={apiStatus?.pixabay ? "••••••••••••••••" : "Enter Pixabay API key"}
-                              className={apiStatus?.pixabay ? "border-green-500/50 pr-10" : "pr-10"}
-                            />
-                            {apiStatus?.pixabay && (
-                              <CheckCircle className="w-4 h-4 text-green-500 absolute right-3 top-3" />
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
                     {/* Speech API Keys */}
                     <div className="flex justify-end">
                       <Button

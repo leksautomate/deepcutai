@@ -188,10 +188,11 @@ function ProjectCard({ project, onDelete, onResume }: { project: VideoProject; o
   const isGenerating = project.status === "generating" || project.status === "queued";
 
   return (
-    <Card className="card-hover transition-all" data-testid={`card-project-${project.id}`}>
-      <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
+    <Card className="group relative overflow-hidden border border-white/5 bg-black/40 backdrop-blur-xl hover:bg-black/60 transition-all duration-500 shadow-2xl hover:shadow-primary/20 hover:-translate-y-1" data-testid={`card-project-${project.id}`}>
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      <CardHeader className="flex flex-row items-start justify-between gap-4 p-5 pb-3 relative z-10">
         <div className="flex-1 min-w-0">
-          <CardTitle className="text-base truncate" data-testid={`text-title-${project.id}`}>
+          <CardTitle className="text-lg font-bold truncate tracking-tight" data-testid={`text-title-${project.id}`}>
             {project.title}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">

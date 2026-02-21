@@ -77,9 +77,7 @@ export function AssetConfig({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [mediaType, setMediaType] = useState<"image" | "video">(videoGenerator ? "video" : "image");
   const [selectedGenerator, setSelectedGenerator] = useState(imageGenerator);
-  const [selectedVideoGenerator, setSelectedVideoGenerator] = useState(videoGenerator || "pexels");
   const [selectedTtsProvider, setSelectedTtsProvider] = useState<TTSProvider>(ttsProvider);
   const [pollinationsModel, setPollinationsModel] = useState("flux");
   const [firstPageFrequency, setFirstPageFrequency] = useState<number | undefined>(undefined);
@@ -466,100 +464,47 @@ export function AssetConfig({
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label>Media Type</Label>
-            <RadioGroup
-              value={mediaType}
-              onValueChange={(value: "image" | "video") => {
-                setMediaType(value);
-                if (value === "image") {
-                  onVideoGeneratorChange?.("");
-                  onImageGeneratorChange?.(selectedGenerator || "wavespeed");
-                } else {
-                  onImageGeneratorChange?.("");
-                  onVideoGeneratorChange?.(selectedVideoGenerator);
-                }
+            <Label htmlFor="image-generator">Image Generator</Label>
+            <Select
+              value={selectedGenerator}
+              onValueChange={(value) => {
+                setSelectedGenerator(value);
+                onImageGeneratorChange?.(value);
               }}
-              className="flex space-x-4 mt-1.5 mb-4"
             >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="image" id="media-image" />
-                <Label htmlFor="media-image">AI Generated Images</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="video" id="media-video" />
-                <Label htmlFor="media-video">Stock Video (B-Roll)</Label>
-              </div>
-            </RadioGroup>
+              <SelectTrigger className="mt-1.5" data-testid="select-image-generator">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="seedream">Seedream (Freepik)</SelectItem>
+                <SelectItem value="wavespeed">WaveSpeed</SelectItem>
+                <SelectItem value="runpod">RunPod</SelectItem>
+                <SelectItem value="pollinations">Grand Image (Pollinations)</SelectItem>
+                <SelectItem value="whisk">Whisk (Google IMAGEN 3.5)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          {mediaType === "image" ? (
-            <>
-              <div>
-                <Label htmlFor="image-generator">Image Generator</Label>
-                <Select
-                  value={selectedGenerator}
-                  onValueChange={(value) => {
-                    setSelectedGenerator(value);
-                    onImageGeneratorChange?.(value);
-                  }}
-                >
-                  <SelectTrigger className="mt-1.5" data-testid="select-image-generator">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="seedream">Seedream (Freepik)</SelectItem>
-                    <SelectItem value="wavespeed">WaveSpeed</SelectItem>
-                    <SelectItem value="runpod">RunPod</SelectItem>
-                    <SelectItem value="pollinations">Grand Image (Pollinations)</SelectItem>
-                    <SelectItem value="whisk">Whisk (Google IMAGEN 3.5)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedGenerator === "pollinations" && (
-                <div>
-                  <Label htmlFor="pollinations-model">Pollinations Model</Label>
-                  <Select
-                    value={pollinationsModel}
-                    onValueChange={setPollinationsModel}
-                  >
-                    <SelectTrigger className="mt-1.5" data-testid="select-pollinations-model">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pollinationsModels.map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {model.charAt(0).toUpperCase() + model.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Choose AI model for image generation
-                  </p>
-                </div>
-              )}
-            </>
-          ) : (
+          {selectedGenerator === "pollinations" && (
             <div>
-              <Label htmlFor="video-generator">B-Roll Provider</Label>
+              <Label htmlFor="pollinations-model">Pollinations Model</Label>
               <Select
-                value={selectedVideoGenerator}
-                onValueChange={(value) => {
-                  setSelectedVideoGenerator(value);
-                  onVideoGeneratorChange?.(value);
-                }}
+                value={pollinationsModel}
+                onValueChange={setPollinationsModel}
               >
-                <SelectTrigger className="mt-1.5" data-testid="select-video-generator">
+                <SelectTrigger className="mt-1.5" data-testid="select-pollinations-model">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pexels">Pexels Stock Video</SelectItem>
-                  <SelectItem value="pixabay">Pixabay Stock Video</SelectItem>
+                  {pollinationsModels.map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {model.charAt(0).toUpperCase() + model.slice(1)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
-                Videos will seamlessly auto-loop to fill scene duration
+                Choose AI model for image generation
               </p>
             </div>
           )}

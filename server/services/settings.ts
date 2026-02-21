@@ -74,8 +74,16 @@ function loadSettings(): AppSettings {
     if (fs.existsSync(SETTINGS_FILE)) {
       const data = fs.readFileSync(SETTINGS_FILE, "utf-8");
       const saved = JSON.parse(data);
-      // Merge with defaults to handle new fields added in updates
-      return { ...DEFAULT_SETTINGS, ...saved };
+      // Deep merge with defaults to handle new fields/arrays added in updates
+      return {
+        ...DEFAULT_SETTINGS,
+        ...saved,
+        sceneSettings: { ...DEFAULT_SETTINGS.sceneSettings, ...(saved.sceneSettings || {}) },
+        imageStyleSettings: { ...DEFAULT_SETTINGS.imageStyleSettings, ...(saved.imageStyleSettings || {}) },
+        transitionSettings: { ...DEFAULT_SETTINGS.transitionSettings, ...(saved.transitionSettings || {}) },
+        customVoices: saved.customVoices || DEFAULT_SETTINGS.customVoices,
+        customImageStyles: saved.customImageStyles || DEFAULT_SETTINGS.customImageStyles,
+      };
     }
   } catch (err) {
     console.error("[SETTINGS] Failed to load settings file, using defaults:", err);

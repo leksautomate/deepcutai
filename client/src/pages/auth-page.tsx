@@ -11,7 +11,7 @@ import { Video, Sparkles, Zap, Film, Mic, Image, Loader2, Lock, User } from "luc
 export default function AuthPage() {
   const [, setLocation] = useLocation();
   const { user, loginMutation } = useAuth();
-  
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -26,7 +26,7 @@ export default function AuthPage() {
   }, [setupStatus, setLocation]);
 
   if (user) {
-    setLocation("/");
+    setLocation("/dashboard");
     return null;
   }
 
@@ -127,9 +127,9 @@ export default function AuthPage() {
                   Invalid username or password
                 </p>
               )}
-              <Button 
-                type="submit" 
-                className="w-full" 
+              <Button
+                type="submit"
+                className="w-full"
                 disabled={loginMutation.isPending}
                 data-testid="button-login"
               >
@@ -153,7 +153,7 @@ export default function AuthPage() {
           <p className="text-muted-foreground mb-8">
             DeepCut AI automates the entire video creation process. Just provide a topic, and our AI generates scripts, voiceovers, images, and assembles them into professional videos.
           </p>
-          
+
           <div className="grid gap-4">
             {features.map((feature, index) => (
               <div key={index} className="flex items-start gap-4 p-4 rounded-lg bg-card border">

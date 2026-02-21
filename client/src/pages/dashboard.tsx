@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  Video, 
-  Play, 
-  Download, 
-  Trash2, 
-  Clock, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Video,
+  Play,
+  Download,
+  Trash2,
+  Clock,
+  CheckCircle,
+  AlertCircle,
   Loader2,
   Plus,
   RefreshCw,
@@ -72,18 +72,20 @@ function StatusBadge({ status }: { status: string }) {
   }
 }
 
-function ProjectCard({ 
-  project, 
-  onDelete, 
-  isDeleting 
-}: { 
-  project: VideoProject; 
+function ProjectCard({
+  project,
+  onDelete,
+  isDeleting
+}: {
+  project: VideoProject;
   onDelete: (id: string) => void;
   isDeleting: boolean;
 }) {
   return (
-    <Card className="overflow-visible" data-testid={`card-project-${project.id}`}>
-      <div className="relative aspect-video bg-muted rounded-t-md overflow-hidden">
+    <Card className="group relative overflow-hidden border border-white/5 bg-black/40 backdrop-blur-xl hover:bg-black/60 transition-all duration-500 shadow-2xl hover:shadow-primary/20 hover:-translate-y-1" data-testid={`card-project-${project.id}`}>
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      <div className="relative aspect-video bg-black/50 overflow-hidden group-hover:scale-105 transition-transform duration-700 z-0">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10 pointer-events-none" />
         {project.thumbnailPath ? (
           <img
             src={project.thumbnailPath}
@@ -103,15 +105,15 @@ function ProjectCard({
           </div>
         )}
       </div>
-      <CardHeader className="pb-2">
+      <CardHeader className="p-4 pb-2 relative z-20">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base line-clamp-1" data-testid={`text-title-${project.id}`}>
+          <CardTitle className="text-base font-semibold line-clamp-1 tracking-tight" data-testid={`text-title-${project.id}`}>
             {project.title}
           </CardTitle>
           <StatusBadge status={project.status} />
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4 pt-2 relative z-20">
         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
           <span className="flex items-center gap-1">
             <Clock className="w-3.5 h-3.5" />
@@ -119,7 +121,7 @@ function ProjectCard({
           </span>
           <span>{formatDate(project.createdAt)}</span>
         </div>
-        
+
         {project.errorMessage && (
           <p className="text-sm text-destructive mb-4 line-clamp-2" data-testid={`text-error-${project.id}`}>
             {project.errorMessage}
@@ -162,12 +164,12 @@ function ProjectCard({
   );
 }
 
-function ProjectListItem({ 
-  project, 
-  onDelete, 
-  isDeleting 
-}: { 
-  project: VideoProject; 
+function ProjectListItem({
+  project,
+  onDelete,
+  isDeleting
+}: {
+  project: VideoProject;
   onDelete: (id: string) => void;
   isDeleting: boolean;
 }) {
@@ -187,7 +189,7 @@ function ProjectListItem({
             </div>
           )}
         </div>
-        
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="font-medium truncate" data-testid={`text-list-title-${project.id}`}>
@@ -287,7 +289,7 @@ export default function Dashboard() {
               {projects?.length || 0} total projects
             </p>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Button
               size="icon"
@@ -382,8 +384,8 @@ export default function Dashboard() {
         </div>
 
         {isLoading ? (
-          <div className={viewMode === "grid" 
-            ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" 
+          <div className={viewMode === "grid"
+            ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
             : "space-y-3"
           }>
             {[1, 2, 3, 4, 5, 6].map(i => (
