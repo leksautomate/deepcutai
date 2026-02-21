@@ -19,10 +19,14 @@ export interface GenerateScriptOptions {
   userId?: string;
 }
 
+export interface SceneData {
+  text: string;
+}
+
 export interface GeneratedScript {
   title: string;
   script: string;
-  scenes: string[];
+  scenes: SceneData[];
 }
 
 const VIRAL_SCRIPT_PROMPT = `# ROLE
@@ -92,8 +96,16 @@ BAD HOOK (REVEALS TOO MUCH):
 
 Return ONLY valid JSON with this exact structure:
 {
+<<<<<<< HEAD
   "script": "Full script all together in one script",
   "scenes": ["Paragraph 1 text", "Paragraph 2 text", ...]
+=======
+  "script": "Full script with one sentence per line, paragraphs separated by blank lines",
+  "scenes": [
+    { "text": "Paragraph 1 text" },
+    { "text": "Paragraph 2 text" }
+  ]
+>>>>>>> 6026e71 (feat: complete b-roll removal, voice clone fix, chained animations, and new logo)
 }
 
 CRITICAL: Each paragraph in "script" becomes one visual scene. Aim for 4-8 scene paragraphs depending on duration.`;
@@ -168,7 +180,10 @@ Style: ${style === "documentary" ? "Cold, factual documentary narrator" : style 
 Return your response as JSON:
 {
   "script": "The full script with each sentence on its own line",
-  "scenes": ["Scene 1 paragraph", "Scene 2 paragraph", ...]
+  "scenes": [
+    { "text": "Scene 1 paragraph" },
+    { "text": "Scene 2 paragraph" }
+  ]
 }`;
 
   try {
@@ -183,7 +198,7 @@ Return your response as JSON:
 
     const text = response.text || "";
 
-    let parsed: { script?: string; scenes?: string[] };
+    let parsed: { script?: string; scenes?: (string | { text: string })[] };
     try {
       parsed = JSON.parse(text);
     } catch (parseError) {
@@ -191,18 +206,27 @@ Return your response as JSON:
         textPreview: text.slice(0, 200),
       });
       // Fallback: treat the entire response as the script
+      const fallbackScenes = text.split(/\n\n+/).filter((s: string) => s.trim());
       return {
         title: `Video about ${topic}`,
         script: text,
-        scenes: text.split(/\n\n+/).filter((s: string) => s.trim()),
+        scenes: fallbackScenes.map(t => ({ text: t })),
       };
     }
 
-    const script = parsed.script || parsed.scenes?.join("\n\n") || "";
-    const scenes =
-      parsed.scenes ||
-      script.split(/\n\n+/).filter((s: string) => s.trim()) ||
-      [];
+    // Normalize scenes to SceneData[] (handle both string[] and object[] from AI)
+    const rawScenes = parsed.scenes || [];
+    const normalizedScenes: SceneData[] = rawScenes.map(s => {
+      if (typeof s === "string") {
+        return { text: s };
+      }
+      return { text: s.text || "" };
+    });
+
+    const script = parsed.script || normalizedScenes.map(s => s.text).join("\n\n") || "";
+    const scenes = normalizedScenes.length > 0
+      ? normalizedScenes
+      : script.split(/\n\n+/).filter((s: string) => s.trim()).map(t => ({ text: t }));
 
     return {
       title: `Video about ${topic}`,
@@ -220,6 +244,7 @@ Return your response as JSON:
     throw new Error("Failed to generate script with AI");
   }
 }
+
 
 export interface ImageStyleSettings {
   art_style: string;
@@ -307,5 +332,217 @@ ${styleDesc}
   } catch (error) {
     logError("Gemini", "Image prompt generation error", error);
     return `${styleDesc} visual representation of: ${sceneText}`;
+  }
+}
+
+// =============================================
+// Script Wizard — 4-step guided generation
+// =============================================
+
+/**
+ * Step 1: Generate 10 unusual/surprising angles for a topic.
+ */
+export async function wizardGenerateAngles(
+  topic: string,
+  userId?: string,
+): Promise<string[]> {
+  const prompt = `Hey, I've been thinking about this lately: "${topic}".
+Can you give me 10 unusual, surprising, or underexplored reasons why this happened / existed / became important?
+Please number them clearly. I'm looking for story angles that most people don't talk about.
+
+IMPORTANT: Return ONLY a valid JSON array of strings. No markdown, no introduction.
+Example: ["Reason 1 text", "Reason 2 text"]`;
+
+  try {
+    const ai = await getGeminiClient(userId);
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: { responseMimeType: "application/json" },
+    });
+
+    const text = response.text || "[]";
+    const parsed = JSON.parse(text);
+    const angles: string[] = (Array.isArray(parsed) ? parsed : parsed.angles || []).map(
+      (a: any) => typeof a === "string" ? a : a.angle || a.text || String(a)
+    );
+    return angles.slice(0, 10);
+  } catch (error) {
+    logError("Gemini", "Wizard step 1 (angles) error", error);
+    if (error instanceof Error && error.message?.includes("API key not configured")) throw error;
+    throw new Error("Failed to generate angles");
+  }
+}
+
+/**
+ * Step 2: Generate 5 specific ideas from a selected angle.
+ */
+export async function wizardGenerateIdeas(
+  topic: string,
+  angle: string,
+  userId?: string,
+): Promise<string[]> {
+  const prompt = `Topic: ${topic}
+I think reason number "${angle}" is really interesting.
+Can you break down that one reason into 5 short, specific ideas — events, turning points, contradictions, or facts — that are shocking, emotional, or visually powerful?
+Keep them tightly related to that reason.
+
+IMPORTANT: Return ONLY a valid JSON array of strings. No markdown.
+Example: ["Idea 1 text", "Idea 2 text"]`;
+
+  try {
+    const ai = await getGeminiClient(userId);
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: { responseMimeType: "application/json" },
+    });
+
+    const text = response.text || "[]";
+    const parsed = JSON.parse(text);
+    const ideas: string[] = (Array.isArray(parsed) ? parsed : parsed.ideas || []).map(
+      (i: any) => typeof i === "string" ? i : i.title || i.text || String(i)
+    );
+    return ideas.slice(0, 5);
+  } catch (error) {
+    logError("Gemini", "Wizard step 2 (ideas) error", error);
+    if (error instanceof Error && error.message?.includes("API key not configured")) throw error;
+    throw new Error("Failed to generate ideas");
+  }
+}
+
+/**
+ * Step 3: Generate a single dramatic hook for a selected idea.
+ */
+export async function wizardGenerateHook(
+  topic: string,
+  idea: string,
+  userId?: string,
+): Promise<string> {
+  const prompt = `I want you to help me create a short, dramatic hook for "${idea}" related to topic: ${topic}.
+Don't mention names, countries, or places directly. Use words like this man, this woman, this city, this village, etc.
+
+Here's the structure I want:
+
+Start with: "This [character type]" (e.g. "This girl," "This soldier")
+Add a short phrase describing where or when, in parentheses: (e.g. "(in a war-torn village)")
+Then, add one powerful trait or unique detail that makes them special
+Then, describe one key action they did
+Then, pause (add a line break or em dash)
+Finally, give a twist or consequence. A reversal. Something unexpected, ironic, tragic, or mysterious.
+
+Example Output:
+This girl (in medieval France) dressed like a soldier, claimed she spoke to God, and led an army — just to be betrayed by the king she fought for.
+
+IMPORTANT: Return ONLY the hook text. No explanations, no JSON, no markdown.`;
+
+  try {
+    const ai = await getGeminiClient(userId);
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    return (response.text || "").trim();
+  } catch (error) {
+    logError("Gemini", "Wizard step 3 (hook) error", error);
+    if (error instanceof Error && error.message?.includes("API key not configured")) throw error;
+    throw new Error("Failed to generate hook");
+  }
+}
+
+/**
+ * Step 4: Generate the full script from an approved hook and idea.
+ */
+export async function wizardGenerateFullScript(
+  topic: string,
+  idea: string,
+  hook: string,
+  userId?: string,
+): Promise<GeneratedScript> {
+  const prompt = `Write a dramatic short story in this exact format and pacing for the following topic "${idea}" (related to: ${topic}).
+Each sentence should be short and cinematic — like subtitles. No long paragraphs.
+
+The approved hook to use as the opening: "${hook}"
+
+Follow this 7-part structure exactly:
+
+CONTEXT (PART 1)
+Start with the date and place: "It's [year]. [City or country]."
+Introduce characters and setup in simple, factual lines
+Add a cultural or shocking historical norm
+
+SMALL TWIST (PART 2)
+Use a transitional line like "And for a while… it worked."
+Add a sentence or two showing early success or tension building
+
+PLOT TWIST (PART 3)
+Show what went wrong
+Add betrayal, ambition, or power struggle
+End with a dramatic shift (exile, downfall, turning point)
+
+CONTEXT (PART 4)
+Show how the main character responded
+Use short action sentences (e.g. "She camped outside the walls. Built an army.")
+Mention an important alliance if relevant
+
+SMALL TWIST (PART 5)
+Use a quiet tension line (e.g. "And one night… she snuck back in.")
+Do not overexplain — it's a stealth or setup move
+
+FINAL CONSEQUENCE (PART 6)
+Reveal the major event or fallout
+Keep it mysterious ("No one knows how." "But one thing was clear…")
+
+REVEAL (PART 7)
+Final punchline with identity:
+"And the [girl/man/place] who did it… was [name]."
+
+Tone should be visual, cold, and factual — like a narrated historical scene.
+No internal thoughts. No explanations. Just actions and outcomes. Do not include the Headers (like "CONTEXT (PART 1)"), just the script text.
+
+Return ONLY valid JSON: { "script": "full script text with paragraphs separated by blank lines", "scenes": [{ "text": "paragraph" }] }`;
+
+  try {
+    const ai = await getGeminiClient(userId);
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: { responseMimeType: "application/json" },
+    });
+
+    const text = response.text || "";
+    let parsed: { script?: string; scenes?: (string | { text: string })[] };
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      const fallbackScenes = text.split(/\n\n+/).filter((s: string) => s.trim());
+      return {
+        title: idea.split(/[.!?]/)[0] || "Untitled",
+        script: text,
+        scenes: fallbackScenes.map(t => ({ text: t })),
+      };
+    }
+
+    const rawScenes = parsed.scenes || [];
+    const normalizedScenes: SceneData[] = rawScenes.map(s => {
+      if (typeof s === "string") return { text: s };
+      return { text: s.text || "" };
+    });
+
+    const script = parsed.script || normalizedScenes.map(s => s.text).join("\n\n") || "";
+    const scenes = normalizedScenes.length > 0
+      ? normalizedScenes
+      : script.split(/\n\n+/).filter((s: string) => s.trim()).map(t => ({ text: t }));
+
+    return {
+      title: idea.split(/[.!?]/)[0] || "Untitled",
+      script,
+      scenes,
+    };
+  } catch (error) {
+    logError("Gemini", "Wizard step 4 (full script) error", error);
+    if (error instanceof Error && error.message?.includes("API key not configured")) throw error;
+    throw new Error("Failed to generate script");
   }
 }

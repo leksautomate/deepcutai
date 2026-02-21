@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Clock, Image as ImageIcon, RefreshCw, Loader2 } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, Clock, Image as ImageIcon, RefreshCw, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -175,6 +176,15 @@ export function VideoPreview({ manifest, projectId, onUpdateManifest }: VideoPre
               </div>
             )}
 
+            {/* Impact text flash overlay */}
+            {activeScene?.impactText && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className="text-white text-4xl md:text-6xl font-black tracking-wider uppercase drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] animate-pulse">
+                  {activeScene.impactText}
+                </span>
+              </div>
+            )}
+
             {activeScene && (
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
                 <p className="text-white text-center text-lg font-medium leading-relaxed max-w-3xl mx-auto">
@@ -308,10 +318,35 @@ export function VideoPreview({ manifest, projectId, onUpdateManifest }: VideoPre
                               {scene.motion}
                             </Badge>
                           )}
+                          {scene.impactText && (
+                            <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                              <Zap className="w-2.5 h-2.5 mr-0.5" />
+                              {scene.impactText}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
                   </button>
+                  {/* Impact text editor */}
+                  {index === activeSceneIndex && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <Zap className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" />
+                      <Input
+                        value={scene.impactText || ""}
+                        onChange={(e) => {
+                          if (manifest && onUpdateManifest) {
+                            const updatedScenes = manifest.scenes.map((s, i) =>
+                              i === index ? { ...s, impactText: e.target.value } : s
+                            );
+                            onUpdateManifest({ ...manifest, scenes: updatedScenes });
+                          }
+                        }}
+                        placeholder="Impact text (e.g. BLACK DEATH)"
+                        className="h-7 text-xs uppercase"
+                      />
+                    </div>
+                  )}
                   <div className="mt-2 flex justify-end">
                     <Button
                       size="sm"

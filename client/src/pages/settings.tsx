@@ -40,10 +40,8 @@ type ScriptProvider = "gemini" | "groq";
 interface AppSettings {
   customVoices: CustomVoice[];
   sceneSettings: {
-    targetWords: number;
-    maxWords: number;
-    minDuration: number;
-    maxDuration: number;
+    firstPageFrequency: number;
+    restFrequency: number;
   };
   imageStyleSettings: ImageStyleSettings;
   transitionSettings: TransitionSettings;
@@ -53,10 +51,8 @@ interface AppSettings {
 const defaultSettings: AppSettings = {
   customVoices: [],
   sceneSettings: {
-    targetWords: 50,
-    maxWords: 60,
-    minDuration: 15,
-    maxDuration: 25,
+    firstPageFrequency: 5,
+    restFrequency: 60,
   },
   imageStyleSettings: {
     art_style: "Digital concept art mimicking romantic oil painting with soft, painterly brushstrokes.",
@@ -184,6 +180,8 @@ export default function SettingsPage() {
     pollinations: "",
     inworld: "",
     whisk: "",
+    pexels: "",
+    pixabay: "",
   });
   const [showApiKeys, setShowApiKeys] = useState(false);
 
@@ -201,9 +199,12 @@ export default function SettingsPage() {
     pollinations: boolean;
     inworld: boolean;
     whisk: boolean;
+    pexels: boolean;
+    pixabay: boolean;
     whiskStatus?: {
       isValid: boolean;
       isExpired: boolean;
+      daysRemaining: number | null;
       expirationDate: string | null;
       expiresIn: string | null;
       error: string | null;
@@ -225,6 +226,7 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voices"] });
       toast({
         title: "Settings Saved",
         description: "Your settings have been updated successfully.",
@@ -246,7 +248,7 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings/status"] });
-      setApiKeys({ gemini: "", groq: "", speechify: "", freepik: "", wavespeed: "", runpod: "", pollinations: "", inworld: "", whisk: "" });
+      setApiKeys({ gemini: "", groq: "", speechify: "", freepik: "", wavespeed: "", runpod: "", pollinations: "", inworld: "", whisk: "", pexels: "", pixabay: "" });
       setShowApiKeys(false);
       toast({
         title: "API Keys Updated",
@@ -731,6 +733,51 @@ export default function SettingsPage() {
                         </p>
                       </div>
                     </div>
+                    {/* Stock Video API Keys */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Film className="w-5 h-5" />
+                          B-Roll Stock Video APIs
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="pexels-key">Pexels API Key</Label>
+                          <div className="flex gap-2 relative">
+                            <Input
+                              id="pexels-key"
+                              type={showApiKeys ? "text" : "password"}
+                              value={apiKeys.pexels}
+                              onChange={(e) => setApiKeys(prev => ({ ...prev, pexels: e.target.value }))}
+                              placeholder={apiStatus?.pexels ? "••••••••••••••••" : "Enter Pexels API key"}
+                              className={apiStatus?.pexels ? "border-green-500/50 pr-10" : "pr-10"}
+                            />
+                            {apiStatus?.pexels && (
+                              <CheckCircle className="w-4 h-4 text-green-500 absolute right-3 top-3" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="pixabay-key">Pixabay API Key</Label>
+                          <div className="flex gap-2 relative">
+                            <Input
+                              id="pixabay-key"
+                              type={showApiKeys ? "text" : "password"}
+                              value={apiKeys.pixabay}
+                              onChange={(e) => setApiKeys(prev => ({ ...prev, pixabay: e.target.value }))}
+                              placeholder={apiStatus?.pixabay ? "••••••••••••••••" : "Enter Pixabay API key"}
+                              className={apiStatus?.pixabay ? "border-green-500/50 pr-10" : "pr-10"}
+                            />
+                            {apiStatus?.pixabay && (
+                              <CheckCircle className="w-4 h-4 text-green-500 absolute right-3 top-3" />
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Speech API Keys */}
                     <div className="flex justify-end">
                       <Button
                         onClick={handleSaveApiKeys}
@@ -875,90 +922,60 @@ export default function SettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 mb-6">
+                  <p className="text-sm">
+                    <strong>Image Frequency</strong> determines how often images appear in your video.
+                    First Page Frequency applies to the first 3000 characters (approx. 3-5 mins of script).
+                    Rest Frequency applies to the remaining content.
+                  </p>
+                </div>
+
                 <div className="grid gap-6 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="targetWords">Target Words per Scene</Label>
+                    <Label htmlFor="firstPageFrequency">First Page Frequency (seconds)</Label>
                     <Input
-                      id="targetWords"
-                      type="number"
-                      min={20}
-                      max={80}
-                      value={settings.sceneSettings.targetWords}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          sceneSettings: { ...prev.sceneSettings, targetWords: parseInt(e.target.value) || 50 },
-                        }))
-                      }
-                      data-testid="input-target-words"
-                    />
-                    <p className="text-xs text-muted-foreground">Aim for 45-55 words per scene</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="maxWords">Maximum Words per Scene</Label>
-                    <Input
-                      id="maxWords"
-                      type="number"
-                      min={40}
-                      max={100}
-                      value={settings.sceneSettings.maxWords}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          sceneSettings: { ...prev.sceneSettings, maxWords: parseInt(e.target.value) || 60 },
-                        }))
-                      }
-                      data-testid="input-max-words"
-                    />
-                    <p className="text-xs text-muted-foreground">Hard cap at 60 words recommended</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="minDuration">Minimum Scene Duration (seconds)</Label>
-                    <Input
-                      id="minDuration"
+                      id="firstPageFrequency"
                       type="number"
                       min={5}
-                      max={30}
-                      value={settings.sceneSettings.minDuration}
+                      max={120}
+                      value={settings.sceneSettings.firstPageFrequency}
                       onChange={(e) =>
                         setSettings((prev) => ({
                           ...prev,
-                          sceneSettings: { ...prev.sceneSettings, minDuration: parseInt(e.target.value) || 15 },
+                          sceneSettings: { ...prev.sceneSettings, firstPageFrequency: parseInt(e.target.value) || 5 },
                         }))
                       }
-                      data-testid="input-min-duration"
+                      data-testid="input-first-page-frequency"
                     />
-                    <p className="text-xs text-muted-foreground">Minimum 15 seconds per scene</p>
+                    <p className="text-xs text-muted-foreground">How often (in seconds) to show images for the first 3000 chars</p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="maxDuration">Maximum Scene Duration (seconds)</Label>
+                    <Label htmlFor="restFrequency">Rest Frequency (seconds)</Label>
                     <Input
-                      id="maxDuration"
+                      id="restFrequency"
                       type="number"
-                      min={15}
-                      max={60}
-                      value={settings.sceneSettings.maxDuration}
+                      min={5}
+                      max={240}
+                      value={settings.sceneSettings.restFrequency}
                       onChange={(e) =>
                         setSettings((prev) => ({
                           ...prev,
-                          sceneSettings: { ...prev.sceneSettings, maxDuration: parseInt(e.target.value) || 25 },
+                          sceneSettings: { ...prev.sceneSettings, restFrequency: parseInt(e.target.value) || 60 },
                         }))
                       }
-                      data-testid="input-max-duration"
+                      data-testid="input-rest-frequency"
                     />
-                    <p className="text-xs text-muted-foreground">Maximum 25 seconds per scene</p>
+                    <p className="text-xs text-muted-foreground">How often (in seconds) to show images for the rest of the video</p>
                   </div>
+
                 </div>
 
                 <div className="p-4 rounded-lg bg-muted/50">
                   <p className="text-sm font-medium mb-2">Scene Generation Rules</p>
                   <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>Target: {settings.sceneSettings.targetWords} words per scene (1 image per scene)</li>
-                    <li>Duration: {settings.sceneSettings.minDuration}-{settings.sceneSettings.maxDuration} seconds per scene</li>
-                    <li>Approximately 3 scenes per minute of video</li>
+                    <li>First Page: 1 image every ~{settings.sceneSettings.firstPageFrequency} seconds</li>
+                    <li>Rest of Video: 1 image every ~{settings.sceneSettings.restFrequency} seconds</li>
                   </ul>
                 </div>
               </CardContent>
@@ -1134,6 +1151,6 @@ export default function SettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </div >
   );
 }

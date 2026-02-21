@@ -8,6 +8,7 @@ interface RenderOptions {
   manifest: VideoManifest;
   outputPath: string;
   projectDir: string;
+  skipOverlays?: boolean;
   exportQuality?: {
     width: number;
     height: number;
@@ -45,30 +46,118 @@ function runFFmpeg(args: string[]): Promise<{ success: boolean; error?: string }
   });
 }
 
-function getMotionFilter(motion: MotionEffect | undefined, duration: number, width: number, height: number): string {
+// All available motion effects for chaining
+const ALL_MOTIONS: MotionEffect[] = ["zoom-in", "zoom-out", "pan-left", "pan-right", "pan-up", "pan-down"];
+
+/**
+ * Pick 2-3 different motion effects for a scene, ensuring no two adjacent effects are the same.
+ * Avoids repeating the same effect consecutively for visual variety.
+ */
+function getChainedMotionEffects(baseMotion: MotionEffect | undefined, duration: number): MotionEffect[] {
+  const count = duration >= 12 ? 3 : 2;
+  const effects: MotionEffect[] = [];
+  const start = baseMotion || ALL_MOTIONS[Math.floor(Math.random() * ALL_MOTIONS.length)];
+  effects.push(start);
+
+  for (let i = 1; i < count; i++) {
+    const available = ALL_MOTIONS.filter(m => m !== effects[i - 1]);
+    effects.push(available[Math.floor(Math.random() * available.length)]);
+  }
+  return effects;
+}
+
+/**
+ * Build a single zoompan filter string that chains multiple motion effects
+ * by using FFmpeg's if() expressions to switch behavior at frame boundaries.
+ */
+function buildChainedMotionFilter(effects: MotionEffect[], duration: number, width: number, height: number): string {
+  const fps = 30;
+  const totalFrames = Math.ceil(duration * fps);
+  const segFrames = Math.floor(totalFrames / effects.length);
   const zoomStart = 1.0;
   const zoomEnd = 1.25;
-  const fps = 30;
-  const frames = Math.ceil(duration * fps);
-  const zoomIncrement = (zoomEnd - zoomStart) / frames;
-  const maxFrames = Math.max(1, frames - 1);
 
-  switch (motion) {
-    case "zoom-in":
-      return `scale=8000:-1,zoompan=z='min(zoom+${zoomIncrement},${zoomEnd})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${width}x${height}:fps=${fps}`;
-    case "zoom-out":
-      return `scale=8000:-1,zoompan=z='if(lte(zoom,${zoomStart}),${zoomEnd},max(${zoomStart},zoom-${zoomIncrement}))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${width}x${height}:fps=${fps}`;
-    case "pan-left":
-      return `scale=8000:-1,zoompan=z='${zoomEnd}':x='min(iw-iw/zoom,max(0,(iw-iw/zoom)*(1-min(1,on/${maxFrames}))))':y='(ih-ih/zoom)/2':d=${frames}:s=${width}x${height}:fps=${fps}`;
-    case "pan-right":
-      return `scale=8000:-1,zoompan=z='${zoomEnd}':x='min(iw-iw/zoom,max(0,(iw-iw/zoom)*min(1,on/${maxFrames})))':y='(ih-ih/zoom)/2':d=${frames}:s=${width}x${height}:fps=${fps}`;
-    case "pan-up":
-      return `scale=8000:-1,zoompan=z='${zoomEnd}':x='(iw-iw/zoom)/2':y='min(ih-ih/zoom,max(0,(ih-ih/zoom)*(1-min(1,on/${maxFrames}))))':d=${frames}:s=${width}x${height}:fps=${fps}`;
-    case "pan-down":
-      return `scale=8000:-1,zoompan=z='${zoomEnd}':x='(iw-iw/zoom)/2':y='min(ih-ih/zoom,max(0,(ih-ih/zoom)*min(1,on/${maxFrames})))':d=${frames}:s=${width}x${height}:fps=${fps}`;
-    default:
-      return `scale=8000:-1,zoompan=z='min(zoom+${zoomIncrement},${zoomEnd})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${width}x${height}:fps=${fps}`;
+  // Helper: build zoom expression for a segment
+  function zoomExpr(effect: MotionEffect, segStart: number, segLen: number): string {
+    const inc = (zoomEnd - zoomStart) / segLen;
+    const localFrame = `(on-${segStart})`;
+    switch (effect) {
+      case "zoom-in":
+        return `min(${zoomStart}+${inc}*${localFrame},${zoomEnd})`;
+      case "zoom-out":
+        return `max(${zoomStart},${zoomEnd}-${inc}*${localFrame})`;
+      default: // pans use a constant zoom
+        return `${zoomEnd}`;
+    }
   }
+
+  // Helper: build x expression for a segment
+  function xExpr(effect: MotionEffect, segStart: number, segLen: number): string {
+    const localFrame = `(on-${segStart})`;
+    const maxF = Math.max(1, segLen - 1);
+    switch (effect) {
+      case "pan-left":
+        return `min(iw-iw/zoom,max(0,(iw-iw/zoom)*(1-min(1,${localFrame}/${maxF}))))`;
+      case "pan-right":
+        return `min(iw-iw/zoom,max(0,(iw-iw/zoom)*min(1,${localFrame}/${maxF})))`;
+      default: // zoom-in, zoom-out, pan-up, pan-down: center x
+        return `iw/2-(iw/zoom/2)`;
+    }
+  }
+
+  // Helper: build y expression for a segment
+  function yExpr(effect: MotionEffect, segStart: number, segLen: number): string {
+    const localFrame = `(on-${segStart})`;
+    const maxF = Math.max(1, segLen - 1);
+    switch (effect) {
+      case "pan-up":
+        return `min(ih-ih/zoom,max(0,(ih-ih/zoom)*(1-min(1,${localFrame}/${maxF}))))`;
+      case "pan-down":
+        return `min(ih-ih/zoom,max(0,(ih-ih/zoom)*min(1,${localFrame}/${maxF})))`;
+      default: // zoom-in, zoom-out, pan-left, pan-right: center y
+        return `ih/2-(ih/zoom/2)`;
+    }
+  }
+
+  // Build chained expressions using nested if() statements
+  let zChain = "";
+  let xChain = "";
+  let yChain = "";
+
+  for (let i = 0; i < effects.length; i++) {
+    const segStart = i * segFrames;
+    const segLen = (i === effects.length - 1) ? totalFrames - segStart : segFrames;
+    const z = zoomExpr(effects[i], segStart, segLen);
+    const x = xExpr(effects[i], segStart, segLen);
+    const y = yExpr(effects[i], segStart, segLen);
+
+    if (i === effects.length - 1) {
+      // Last segment — no condition needed
+      zChain += z;
+      xChain += x;
+      yChain += y;
+    } else {
+      const boundary = (i + 1) * segFrames;
+      zChain += `if(lt(on,${boundary}),${z},`;
+      xChain += `if(lt(on,${boundary}),${x},`;
+      yChain += `if(lt(on,${boundary}),${y},`;
+    }
+  }
+
+  // Close the if() nesting
+  const closingParens = ")".repeat(effects.length - 1);
+  zChain += closingParens;
+  xChain += closingParens;
+  yChain += closingParens;
+
+  return `scale=8000:-1,zoompan=z='${zChain}':x='${xChain}':y='${yChain}':d=${totalFrames}:s=${width}x${height}:fps=${fps}`;
+}
+
+function getMotionFilter(motion: MotionEffect | undefined, duration: number, width: number, height: number): string {
+  // Always use chained multi-animation for a dynamic Ken Burns effect
+  const effects = getChainedMotionEffects(motion, duration);
+  logInfo("Motion", `Chaining ${effects.length} effects: ${effects.join(" → ")} for ${duration.toFixed(1)}s`);
+  return buildChainedMotionFilter(effects, duration, width, height);
 }
 
 async function getAudioDuration(audioPath: string): Promise<number> {
@@ -104,11 +193,11 @@ async function createSceneVideo(
   height: number
 ): Promise<{ success: boolean; videoPath?: string; duration?: number; error?: string }> {
   const imageFile = scene.imageFile ? path.join(process.cwd(), "public", scene.imageFile) : null;
+  const videoFile = scene.videoFile ? path.join(process.cwd(), "public", scene.videoFile) : null;
   const audioFile = scene.audioFile ? path.join(process.cwd(), "public", scene.audioFile) : null;
 
-  if (!imageFile || !fs.existsSync(imageFile)) {
-    logError("render", `Image file not found for scene ${scene.id}`, undefined, { sceneId: scene.id, imageFile: scene.imageFile });
-    return { success: false, error: `Image file not found for scene ${scene.id}` };
+  if (!imageFile && !videoFile) {
+    return { success: false, error: `Neither Image nor Video file found for scene ${scene.id}` };
   }
 
   // Get actual audio duration if audio exists, otherwise use scene duration
@@ -121,22 +210,50 @@ async function createSceneVideo(
   }
 
   const sceneVideoPath = path.join(projectDir, `scene-${index}-video.mp4`);
-  const motionFilter = getMotionFilter(scene.motion, duration, width, height);
 
-  const videoArgs = [
-    "-y",
-    "-loop", "1",
-    "-i", imageFile,
-    "-vf", motionFilter,
-    "-t", duration.toString(),
-    "-pix_fmt", "yuv420p",
-    "-c:v", "libx264",
-    "-preset", "medium",
-    "-crf", "18",
-    "-profile:v", "high",
-    "-level", "4.2",
-    sceneVideoPath,
-  ];
+  let videoArgs: string[];
+
+  if (videoFile && fs.existsSync(videoFile)) {
+    // Process B-Roll stock video instead of a static AI image
+    // -stream_loop -1 loops it infinitely if it's too short for the audio
+    // -t trims it exactly to the audio duration
+    // The filter crops it perfectly to the project aspect ratio
+    videoArgs = [
+      "-y",
+      "-stream_loop", "-1",
+      "-i", videoFile,
+      "-vf", `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`,
+      "-t", duration.toString(),
+      "-pix_fmt", "yuv420p",
+      "-c:v", "libx264",
+      "-preset", "medium",
+      "-crf", "18",
+      "-profile:v", "high",
+      "-level", "4.2",
+      "-an", // mute the source video completely
+      sceneVideoPath,
+    ];
+  } else if (imageFile) {
+    // Process standard AI image with Ken Burns filters
+    const motionFilter = getMotionFilter(scene.motion, duration, width, height);
+
+    videoArgs = [
+      "-y",
+      "-loop", "1",
+      "-i", imageFile,
+      "-vf", motionFilter,
+      "-t", duration.toString(),
+      "-pix_fmt", "yuv420p",
+      "-c:v", "libx264",
+      "-preset", "medium",
+      "-crf", "18",
+      "-profile:v", "high",
+      "-level", "4.2",
+      sceneVideoPath,
+    ];
+  } else {
+    return { success: false, error: "No visual source file available" };
+  }
 
   const videoResult = await runFFmpeg(videoArgs);
   if (!videoResult.success) {
@@ -276,7 +393,7 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
       // Calculate audio delays to match xfade offsets
       const audioFilters: string[] = [];
       const audioLabels: string[] = [];
-      
+
       for (let i = 0; i < sceneVideos.length; i++) {
         if (scenes[i]?.audioFile) {
           if (i === 0) {
@@ -299,7 +416,7 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
           audioLabels.push(`[a${i}]`);
         }
       }
-      
+
       if (audioLabels.length > 0) {
         // Mix all audio streams together (they're already delayed to correct positions)
         filterComplex += audioFilters.join(';') + ';';
@@ -347,7 +464,7 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
     if (!concatResult.success) {
       logWarning("Render", "Transition rendering failed, falling back to simple concat");
       const concatListPath = path.join(projectDir, "concat-list.txt");
-      const concatListContent = sceneVideos.map((v) => `file '${v}'`).join("\n");
+      const concatListContent = sceneVideos.map((v) => `file '${v.replace(/\\/g, "/")}'`).join("\n");
       fs.writeFileSync(concatListPath, concatListContent);
 
       const fallbackArgs = [
@@ -371,7 +488,7 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
     }
   } else {
     const concatListPath = path.join(projectDir, "concat-list.txt");
-    const concatListContent = sceneVideos.map((v) => `file '${v}'`).join("\n");
+    const concatListContent = sceneVideos.map((v) => `file '${v.replace(/\\/g, "/")}'`).join("\n");
     fs.writeFileSync(concatListPath, concatListContent);
 
     const concatArgs = [
@@ -406,65 +523,7 @@ export async function renderVideo(options: RenderOptions): Promise<RenderResult>
     return { success: false, error: concatResult.error };
   }
 
-  // Burn captions if style is set - default to "classic" if undefined
-  const captionStyle = manifest.captionStyle || "classic";
-  logInfo("Render", `Caption style: ${captionStyle}`);
-  if (captionStyle !== "none") {
-    logInfo("Render", `Burning captions with style: ${captionStyle}`);
-    
-    try {
-      const { saveAssFile } = await import("./captions");
-      
-      // Prepare scenes with durations and word alignment for caption generation
-      const captionScenes = scenes.map((scene, i) => ({
-        text: scene.text || "",
-        duration: sceneDurations[i] || scene.durationInSeconds || 5,
-        wordAlignment: scene.wordAlignment,
-      }));
-      
-      const captionPosition = manifest.captionPosition || "bottom-center";
-      const assPath = saveAssFile(projectDir, captionScenes, captionStyle, width, height, captionPosition);
-      
-      // Create temp output path for captioned video
-      const captionedOutputPath = fullOutputPath.replace(".mp4", "-captioned.mp4");
-      
-      const subtitleArgs = [
-        "-y",
-        "-i", fullOutputPath,
-        "-vf", `ass=${assPath}`,
-        "-c:v", "libx264",
-        "-c:a", "copy",
-        "-b:v", bitrate,
-        "-preset", "medium",
-        "-profile:v", "high",
-        "-level", "4.2",
-        "-movflags", "+faststart",
-        captionedOutputPath,
-      ];
-      
-      const subtitleResult = await runFFmpeg(subtitleArgs);
-      
-      // Cleanup ASS file
-      if (fs.existsSync(assPath)) {
-        fs.unlinkSync(assPath);
-      }
-      
-      if (subtitleResult.success && fs.existsSync(captionedOutputPath)) {
-        // Replace original with captioned version
-        fs.unlinkSync(fullOutputPath);
-        fs.renameSync(captionedOutputPath, fullOutputPath);
-        logInfo("Render", "Captions burned successfully");
-      } else {
-        // Keep original video without captions
-        if (fs.existsSync(captionedOutputPath)) {
-          fs.unlinkSync(captionedOutputPath);
-        }
-        logWarning("Render", `Caption burn failed, video saved without captions: ${subtitleResult.error}`);
-      }
-    } catch (captionError) {
-      logWarning("Render", `Caption processing error, video saved without captions`, { error: captionError });
-    }
-  }
+
 
   logInfo("Render", `Video rendered successfully: ${outputPath}`);
   return { success: true, outputPath };
@@ -519,7 +578,7 @@ export async function concatenateVideos(
 
   const concatListPath = path.join(outputDir, "concat-list.txt");
   const concatListContent = videoPaths
-    .map(v => `file '${path.join(process.cwd(), "public", v)}'`)
+    .map(v => `file '${path.join(process.cwd(), "public", v).replace(/\\/g, "/")}'`)
     .join("\n");
   fs.writeFileSync(concatListPath, concatListContent);
 

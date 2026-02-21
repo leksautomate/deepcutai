@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Trash2, Video, Clock, AlertCircle, CheckCircle, Loader2, ImagePlus, Sparkles, Play, Edit } from "lucide-react";
+import { Download, Trash2, Video, Clock, AlertCircle, CheckCircle, Loader2, ImagePlus, Sparkles, Play, Edit, RotateCcw } from "lucide-react";
 import { Link } from "wouter";
 import type { VideoProject, VideoManifest } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
@@ -182,7 +182,7 @@ function ThumbnailDesigner({ project, onGenerated }: { project: VideoProject; on
   );
 }
 
-function ProjectCard({ project, onDelete }: { project: VideoProject; onDelete: (id: string) => void }) {
+function ProjectCard({ project, onDelete, onResume }: { project: VideoProject; onDelete: (id: string) => void; onResume: (id: string) => void }) {
   const statusConfig = getStatusConfig(project.status);
   const StatusIcon = statusConfig.icon;
   const isGenerating = project.status === "generating" || project.status === "queued";
@@ -213,10 +213,23 @@ function ProjectCard({ project, onDelete }: { project: VideoProject; onDelete: (
           </div>
         )}
 
-        {project.status === "error" && project.errorMessage && (
-          <p className="text-xs text-destructive" data-testid={`text-error-${project.id}`}>
-            {project.errorMessage}
-          </p>
+        {project.status === "error" && (
+          <div className="space-y-2">
+            {project.errorMessage && (
+              <p className="text-xs text-destructive" data-testid={`text-error-${project.id}`}>
+                {project.errorMessage}
+              </p>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onResume(project.id)}
+              data-testid={`button-resume-${project.id}`}
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Resume Generation
+            </Button>
+          </div>
         )}
 
         {project.thumbnailPath && (
@@ -298,6 +311,19 @@ export default function MyVideos() {
     },
   });
 
+  const resumeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("POST", `/api/projects/${id}/resume`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      toast({ title: "Generation resumed", description: "Picking up from the last completed scene." });
+    },
+    onError: () => {
+      toast({ title: "Failed to resume", variant: "destructive" });
+    },
+  });
+
   const sortedProjects = [...projects].sort((a, b) => {
     const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -361,6 +387,7 @@ export default function MyVideos() {
                 key={project.id}
                 project={project}
                 onDelete={(id) => deleteMutation.mutate(id)}
+                onResume={(id) => resumeMutation.mutate(id)}
               />
             ))}
           </div>

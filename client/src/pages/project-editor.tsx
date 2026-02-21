@@ -28,6 +28,7 @@ export default function ProjectEditor() {
   const [resolution, setResolution] = useState("1080p");
   const [imageGenerator, setImageGenerator] = useState("wavespeed");
   const [customStyleText, setCustomStyleText] = useState("");
+  const [impactTextCount, setImpactTextCount] = useState(2);
   const [manifest, setManifest] = useState<VideoManifest | undefined>();
 
   const { data: project, isLoading } = useQuery<VideoProject>({
@@ -42,7 +43,12 @@ export default function ProjectEditor() {
       setVoiceId(project.voiceId || "george");
       setImageStyle(project.imageStyle || "cinematic");
       setImageGenerator((project as any).imageGenerator || "wavespeed");
-      setManifest(project.manifest as VideoManifest | undefined);
+      const projectManifest = project.manifest as VideoManifest | undefined;
+      setManifest(projectManifest);
+      // Default to Preview & Export tab when no manifest (so user sees Generate button)
+      if (!projectManifest) {
+        setActiveTab("render");
+      }
     }
   }, [project]);
 
@@ -167,11 +173,11 @@ export default function ProjectEditor() {
               </TabsTrigger>
               <TabsTrigger value="assets" className="gap-2" data-testid="tab-assets">
                 <Image className="w-4 h-4" />
-                Regenerate
+                Settings
               </TabsTrigger>
               <TabsTrigger value="render" className="gap-2" data-testid="tab-render">
                 <Video className="w-4 h-4" />
-                Render
+                Preview & Export
               </TabsTrigger>
             </TabsList>
 
@@ -230,6 +236,8 @@ export default function ProjectEditor() {
                   onResolutionChange={setResolution}
                   onImageGeneratorChange={setImageGenerator}
                   onGenerateAssets={handleAssetsGenerated}
+                  impactTextCount={impactTextCount}
+                  onImpactTextCountChange={setImpactTextCount}
                   script={editedScript || project.script}
                   projectId={projectId}
                 />
@@ -242,6 +250,15 @@ export default function ProjectEditor() {
                 projectId={projectId}
                 onRenderComplete={handleRenderComplete}
                 onGoToAssets={() => setActiveTab("assets")}
+                generationSettings={{
+                  script: editedScript || project.script,
+                  voiceId,
+                  imageStyle,
+                  customStyleText,
+                  resolution,
+                  imageGenerator,
+                  impactTextCount,
+                }}
               />
             </TabsContent>
           </Tabs>

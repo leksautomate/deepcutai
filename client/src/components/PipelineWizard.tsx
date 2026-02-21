@@ -1,17 +1,15 @@
 import { useState, useCallback } from "react";
-import { Check, FileText, Image, Play, Video, ChevronRight, ChevronLeft } from "lucide-react";
+import { Check, FileText, Settings, Zap, ChevronRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScriptInput } from "./ScriptInput";
 import { AssetConfig } from "./AssetConfig";
-import { VideoPreview } from "./VideoPreview";
 import { RenderPanel } from "./RenderPanel";
 import type { VideoManifest, GenerationProgress } from "@shared/schema";
 
 const steps = [
   { id: 1, name: "Script", icon: FileText, description: "Create or generate your script" },
-  { id: 2, name: "Assets", icon: Image, description: "Configure voice and visuals" },
-  { id: 3, name: "Preview", icon: Play, description: "Review your video" },
-  { id: 4, name: "Render", icon: Video, description: "Export final video" },
+  { id: 2, name: "Settings", icon: Settings, description: "Configure voice and visuals" },
+  { id: 3, name: "Generate", icon: Zap, description: "Generate & export video" },
 ];
 
 interface ProjectState {
@@ -22,6 +20,8 @@ interface ProjectState {
   imageStyle: string;
   customStyleText: string;
   resolution: string;
+  imageGenerator?: string;
+  videoGenerator?: string;
   manifest?: VideoManifest;
   status: "draft" | "generating" | "ready" | "error";
   progress?: GenerationProgress;
@@ -36,6 +36,8 @@ export function PipelineWizard() {
     imageStyle: "cinematic",
     customStyleText: "",
     resolution: "1080p",
+    imageGenerator: "wavespeed",
+    videoGenerator: "",
     status: "draft",
   });
 
@@ -45,15 +47,13 @@ export function PipelineWizard() {
         return project.script.trim().length > 10;
       case 2:
         return project.voiceId && project.imageStyle;
-      case 3:
-        return project.manifest !== undefined;
       default:
         return true;
     }
   };
 
   const handleNext = () => {
-    if (currentStep < 4 && canProceed()) {
+    if (currentStep < 3 && canProceed()) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -75,7 +75,6 @@ export function PipelineWizard() {
       manifest,
       status: "ready",
     }));
-    setCurrentStep(3);
   }, []);
 
   return (
@@ -90,19 +89,19 @@ export function PipelineWizard() {
                     onClick={() => step.id <= currentStep && setCurrentStep(step.id)}
                     disabled={step.id > currentStep}
                     className={`flex items-center gap-3 p-3 rounded-lg transition-all w-full ${step.id === currentStep
-                        ? "bg-primary/10 border border-primary/20"
-                        : step.id < currentStep
-                          ? "hover-elevate cursor-pointer"
-                          : "opacity-50 cursor-not-allowed"
+                      ? "bg-primary/10 border border-primary/20"
+                      : step.id < currentStep
+                        ? "hover-elevate cursor-pointer"
+                        : "opacity-50 cursor-not-allowed"
                       }`}
                     data-testid={`step-${step.id}`}
                   >
                     <div
                       className={`flex items-center justify-center w-10 h-10 rounded-full ${step.id < currentStep
+                        ? "bg-primary text-primary-foreground"
+                        : step.id === currentStep
                           ? "bg-primary text-primary-foreground"
-                          : step.id === currentStep
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground"
+                          : "bg-muted text-muted-foreground"
                         }`}
                     >
                       {step.id < currentStep ? (
@@ -148,10 +147,14 @@ export function PipelineWizard() {
               imageStyle={project.imageStyle}
               customStyleText={project.customStyleText}
               resolution={project.resolution}
+              imageGenerator={project.imageGenerator}
+              videoGenerator={project.videoGenerator}
               onVoiceChange={(voiceId) => updateProject({ voiceId })}
               onImageStyleChange={(imageStyle) => updateProject({ imageStyle })}
               onCustomStyleChange={(customStyleText) => updateProject({ customStyleText })}
               onResolutionChange={(resolution) => updateProject({ resolution })}
+              onImageGeneratorChange={(imageGenerator) => updateProject({ imageGenerator })}
+              onVideoGeneratorChange={(videoGenerator) => updateProject({ videoGenerator })}
               onGenerateAssets={handleAssetsGenerated}
               script={project.script}
               projectId={project.id}
@@ -159,17 +162,20 @@ export function PipelineWizard() {
           )}
 
           {currentStep === 3 && (
-            <VideoPreview
-              manifest={project.manifest}
-              onUpdateManifest={(manifest) => updateProject({ manifest })}
-            />
-          )}
-
-          {currentStep === 4 && (
             <RenderPanel
               manifest={project.manifest}
               projectId={project.id}
               onRenderComplete={(_outputPath) => updateProject({ status: "ready" })}
+              onGoToAssets={() => setCurrentStep(2)}
+              generationSettings={{
+                script: project.script,
+                voiceId: project.voiceId,
+                imageStyle: project.imageStyle,
+                customStyleText: project.customStyleText,
+                resolution: project.resolution,
+                imageGenerator: project.imageGenerator || "",
+                videoGenerator: project.videoGenerator || "",
+              }}
             />
           )}
         </div>
@@ -195,10 +201,10 @@ export function PipelineWizard() {
 
           <Button
             onClick={handleNext}
-            disabled={!canProceed() || currentStep === 4}
+            disabled={!canProceed() || currentStep === 3}
             data-testid="button-next"
           >
-            {currentStep === 3 ? "Continue to Render" : "Next"}
+            Next
             <ChevronRight className="w-4 h-4 ml-2" />
           </Button>
         </div>

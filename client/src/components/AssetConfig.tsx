@@ -1,20 +1,18 @@
 import { useState, useRef } from "react";
-import { useLocation } from "wouter";
-import { Mic, Image, Settings, Loader2, Sparkles, Volume2, Pause, Zap, SlidersHorizontal, Save, Trash2, Type } from "lucide-react";
+import { Mic, Image, Settings, Loader2, Volume2, Pause, SlidersHorizontal, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
-import { voiceOptions, imageStyles, resolutionOptions, type VideoManifest, motionEffects, inworldVoiceOptions, type TTSProvider, pollinationsModels, captionStyles, captionStyleLabels, type CaptionStyleId, captionPositions, captionPositionLabels, type CaptionPosition } from "@shared/schema";
+import { voiceOptions, imageStyles, resolutionOptions, type VideoManifest, motionEffects, inworldVoiceOptions, type TTSProvider, pollinationsModels } from "@shared/schema";
 
 interface CustomImageStyle {
   id: string;
@@ -40,12 +38,14 @@ interface AssetConfigProps {
   imageStyle: string;
   resolution: string;
   imageGenerator?: string;
+  videoGenerator?: string;
   ttsProvider?: TTSProvider;
   customStyleText?: string;
   onVoiceChange: (voiceId: string) => void;
   onImageStyleChange: (imageStyle: string) => void;
   onResolutionChange: (resolution: string) => void;
   onImageGeneratorChange?: (generator: string) => void;
+  onVideoGeneratorChange?: (generator: string) => void;
   onTtsProviderChange?: (provider: TTSProvider) => void;
   onCustomStyleChange?: (styleText: string) => void;
   onGenerateAssets: (projectId: string, manifest: VideoManifest) => void;
@@ -58,55 +58,48 @@ export function AssetConfig({
   imageStyle,
   resolution,
   imageGenerator = "wavespeed",
+  videoGenerator,
   ttsProvider = "inworld",
   customStyleText = "",
   onVoiceChange,
   onImageStyleChange,
   onResolutionChange,
   onImageGeneratorChange,
+  onVideoGeneratorChange,
   onTtsProviderChange,
   onCustomStyleChange,
-  onGenerateAssets,
+  onGenerateAssets: _onGenerateAssets,
   script,
   projectId: _projectId,
 }: AssetConfigProps) {
-  const [, setLocation] = useLocation();
   const [motionEffect, setMotionEffect] = useState<string>("zoom-in");
-  const [generationProgress, setGenerationProgress] = useState(0);
-  const [currentTask, setCurrentTask] = useState("");
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [mediaType, setMediaType] = useState<"image" | "video">(videoGenerator ? "video" : "image");
   const [selectedGenerator, setSelectedGenerator] = useState(imageGenerator);
+  const [selectedVideoGenerator, setSelectedVideoGenerator] = useState(videoGenerator || "pexels");
   const [selectedTtsProvider, setSelectedTtsProvider] = useState<TTSProvider>(ttsProvider);
   const [pollinationsModel, setPollinationsModel] = useState("flux");
-  const [targetWords, setTargetWords] = useState<number | undefined>(undefined);
-  const [maxWords, setMaxWords] = useState<number | undefined>(undefined);
-  const [minDuration, setMinDuration] = useState<number | undefined>(undefined);
-  const [maxDuration, setMaxDuration] = useState<number | undefined>(undefined);
+  const [firstPageFrequency, setFirstPageFrequency] = useState<number | undefined>(undefined);
+  const [restFrequency, setRestFrequency] = useState<number | undefined>(undefined);
   const [selectedSavedStyle, setSelectedSavedStyle] = useState<string>("");
   const [newStyleName, setNewStyleName] = useState<string>("");
-  const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>("classic");
-  const [captionPosition, setCaptionPosition] = useState<CaptionPosition>("bottom-center");
 
   // Fetch global settings to use as defaults
   const { data: globalSettings } = useQuery<{
     sceneSettings: {
-      targetWords: number;
-      maxWords: number;
-      minDuration: number;
-      maxDuration: number;
+      firstPageFrequency: number;
+      restFrequency: number;
     };
   }>({
     queryKey: ["/api/settings"],
   });
 
   // Initialize scene settings from global settings when loaded
-  const effectiveTargetWords = targetWords ?? globalSettings?.sceneSettings?.targetWords ?? 30;
-  const effectiveMaxWords = maxWords ?? globalSettings?.sceneSettings?.maxWords ?? 60;
-  const effectiveMinDuration = minDuration ?? globalSettings?.sceneSettings?.minDuration ?? 3;
-  const effectiveMaxDuration = maxDuration ?? globalSettings?.sceneSettings?.maxDuration ?? 15;
+  const effectiveFirstPageFrequency = firstPageFrequency ?? globalSettings?.sceneSettings?.firstPageFrequency ?? 5;
+  const effectiveRestFrequency = restFrequency ?? globalSettings?.sceneSettings?.restFrequency ?? 60;
 
   const { data: voicesData, isLoading: isLoadingVoices } = useQuery<VoicesResponse>({
     queryKey: ["/api/voices"],
@@ -202,91 +195,6 @@ export function AssetConfig({
     ? [...inworldVoices, ...customVoices.filter(v => v.provider === "inworld")]
     : [...speechifyVoices, ...customVoices.filter(v => v.provider === "speechify")];
 
-  const generateMutation = useMutation({
-    mutationFn: async () => {
-      setGenerationProgress(0);
-      setCurrentTask("Preparing script...");
-
-      const response = await apiRequest("POST", "/api/generate-assets", {
-        script,
-        voiceId,
-        imageStyle,
-        customStyleText: imageStyle === "custom" ? customStyleText : undefined,
-        resolution,
-        motionEffect,
-        imageGenerator: selectedGenerator,
-        pollinationsModel: selectedGenerator === "pollinations" ? pollinationsModel : undefined,
-        ttsProvider: selectedTtsProvider,
-        sceneSettings: {
-          targetWords: effectiveTargetWords,
-          maxWords: effectiveMaxWords,
-          minDuration: effectiveMinDuration,
-          maxDuration: effectiveMaxDuration,
-        },
-      });
-
-      return response.json();
-    },
-    onSuccess: (data) => {
-      setGenerationProgress(100);
-      setCurrentTask("Complete!");
-      onGenerateAssets(data.projectId, data.manifest);
-      toast({
-        title: "Assets Generated",
-        description: "All audio and images have been created successfully.",
-      });
-    },
-    onError: (error: Error) => {
-      setCurrentTask("");
-      setGenerationProgress(0);
-      toast({
-        title: "Generation Failed",
-        description: error.message || "Failed to generate assets. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const backgroundMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/generate-background", {
-        script,
-        title: `Video ${Date.now().toString(36)}`,
-        voiceId,
-        imageStyle,
-        customStyleText: imageStyle === "custom" ? customStyleText : undefined,
-        resolution,
-        transition: "fade",
-        imageGenerator: selectedGenerator,
-        pollinationsModel: selectedGenerator === "pollinations" ? pollinationsModel : undefined,
-        ttsProvider: selectedTtsProvider,
-        captionStyle,
-        captionPosition,
-        sceneSettings: {
-          targetWords: effectiveTargetWords,
-          maxWords: effectiveMaxWords,
-          minDuration: effectiveMinDuration,
-          maxDuration: effectiveMaxDuration,
-        },
-      });
-      return response.json();
-    },
-    onSuccess: (_data) => {
-      toast({
-        title: "Video Generation Started",
-        description: "Your video is being generated in the background. You can track progress in My Videos.",
-      });
-      setLocation("/my-videos");
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to Start Generation",
-        description: error.message || "Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
   const previewMutation = useMutation({
     mutationFn: async (voiceIdToPreview: string) => {
       const response = await apiRequest("POST", "/api/tts-preview", {
@@ -359,7 +267,7 @@ export function AssetConfig({
                   onVoiceChange(value === "inworld" ? inworldVoiceOptions[0].id : voiceOptions[0].id);
                 }
               }}
-              disabled={generateMutation.isPending || backgroundMutation.isPending}
+
             >
               <SelectTrigger className="mt-1.5" data-testid="select-tts-provider">
                 <SelectValue />
@@ -558,49 +466,100 @@ export function AssetConfig({
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="image-generator">Image Generator</Label>
-            <Select
-              value={selectedGenerator}
-              onValueChange={(value) => {
-                setSelectedGenerator(value);
-                onImageGeneratorChange?.(value);
+            <Label>Media Type</Label>
+            <RadioGroup
+              value={mediaType}
+              onValueChange={(value: "image" | "video") => {
+                setMediaType(value);
+                if (value === "image") {
+                  onVideoGeneratorChange?.("");
+                  onImageGeneratorChange?.(selectedGenerator || "wavespeed");
+                } else {
+                  onImageGeneratorChange?.("");
+                  onVideoGeneratorChange?.(selectedVideoGenerator);
+                }
               }}
-              disabled={generateMutation.isPending || backgroundMutation.isPending}
+              className="flex space-x-4 mt-1.5 mb-4"
             >
-              <SelectTrigger className="mt-1.5" data-testid="select-image-generator">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="seedream">Seedream (Freepik)</SelectItem>
-                <SelectItem value="wavespeed">WaveSpeed</SelectItem>
-                <SelectItem value="runpod">RunPod</SelectItem>
-                <SelectItem value="pollinations">Grand Image (Pollinations)</SelectItem>
-                <SelectItem value="whisk">Whisk (Google IMAGEN 3.5)</SelectItem>
-              </SelectContent>
-            </Select>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="image" id="media-image" />
+                <Label htmlFor="media-image">AI Generated Images</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="video" id="media-video" />
+                <Label htmlFor="media-video">Stock Video (B-Roll)</Label>
+              </div>
+            </RadioGroup>
           </div>
 
-          {selectedGenerator === "pollinations" && (
+          {mediaType === "image" ? (
+            <>
+              <div>
+                <Label htmlFor="image-generator">Image Generator</Label>
+                <Select
+                  value={selectedGenerator}
+                  onValueChange={(value) => {
+                    setSelectedGenerator(value);
+                    onImageGeneratorChange?.(value);
+                  }}
+                >
+                  <SelectTrigger className="mt-1.5" data-testid="select-image-generator">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="seedream">Seedream (Freepik)</SelectItem>
+                    <SelectItem value="wavespeed">WaveSpeed</SelectItem>
+                    <SelectItem value="runpod">RunPod</SelectItem>
+                    <SelectItem value="pollinations">Grand Image (Pollinations)</SelectItem>
+                    <SelectItem value="whisk">Whisk (Google IMAGEN 3.5)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedGenerator === "pollinations" && (
+                <div>
+                  <Label htmlFor="pollinations-model">Pollinations Model</Label>
+                  <Select
+                    value={pollinationsModel}
+                    onValueChange={setPollinationsModel}
+                  >
+                    <SelectTrigger className="mt-1.5" data-testid="select-pollinations-model">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pollinationsModels.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model.charAt(0).toUpperCase() + model.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Choose AI model for image generation
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
             <div>
-              <Label htmlFor="pollinations-model">Pollinations Model</Label>
+              <Label htmlFor="video-generator">B-Roll Provider</Label>
               <Select
-                value={pollinationsModel}
-                onValueChange={setPollinationsModel}
-                disabled={generateMutation.isPending || backgroundMutation.isPending}
+                value={selectedVideoGenerator}
+                onValueChange={(value) => {
+                  setSelectedVideoGenerator(value);
+                  onVideoGeneratorChange?.(value);
+                }}
               >
-                <SelectTrigger className="mt-1.5" data-testid="select-pollinations-model">
+                <SelectTrigger className="mt-1.5" data-testid="select-video-generator">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {pollinationsModels.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model.charAt(0).toUpperCase() + model.slice(1)}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="pexels">Pexels Stock Video</SelectItem>
+                  <SelectItem value="pixabay">Pixabay Stock Video</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
-                Choose AI model for image generation
+                Videos will seamlessly auto-loop to fill scene duration
               </p>
             </div>
           )}
@@ -610,7 +569,7 @@ export function AssetConfig({
             <Select
               value={resolution}
               onValueChange={onResolutionChange}
-              disabled={generateMutation.isPending || backgroundMutation.isPending}
+
             >
               <SelectTrigger className="mt-1.5" data-testid="select-resolution">
                 <SelectValue />
@@ -630,7 +589,7 @@ export function AssetConfig({
             <Select
               value={motionEffect}
               onValueChange={setMotionEffect}
-              disabled={generateMutation.isPending || backgroundMutation.isPending}
+
             >
               <SelectTrigger className="mt-1.5" data-testid="select-motion">
                 <SelectValue />
@@ -671,213 +630,51 @@ export function AssetConfig({
           <CardDescription>Control how the script is split into scenes</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
             <div>
-              <Label htmlFor="targetWords">Target Words per Scene</Label>
+              <Label htmlFor="firstPageFrequency">First Page Frequency (sec)</Label>
               <Input
-                id="targetWords"
+                id="firstPageFrequency"
                 type="number"
-                min={1}
-                max={200}
-                value={effectiveTargetWords.toString()}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  if (!isNaN(val)) setTargetWords(val);
-                  else if (e.target.value === "") setTargetWords(0);
-                }}
-                onBlur={() => setTargetWords(Math.max(5, Math.min(200, effectiveTargetWords || 30)))}
-                className="mt-1.5"
-                disabled={generateMutation.isPending || backgroundMutation.isPending}
-                data-testid="input-target-words"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Aim for this many words per scene</p>
-            </div>
-            <div>
-              <Label htmlFor="maxWords">Maximum Words per Scene</Label>
-              <Input
-                id="maxWords"
-                type="number"
-                min={1}
-                max={300}
-                value={effectiveMaxWords.toString()}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  if (!isNaN(val)) setMaxWords(val);
-                  else if (e.target.value === "") setMaxWords(0);
-                }}
-                onBlur={() => setMaxWords(Math.max(effectiveTargetWords, Math.min(300, effectiveMaxWords || 60)))}
-                className="mt-1.5"
-                disabled={generateMutation.isPending || backgroundMutation.isPending}
-                data-testid="input-max-words"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Hard limit per scene</p>
-            </div>
-            <div>
-              <Label htmlFor="minDuration">Min Duration (sec)</Label>
-              <Input
-                id="minDuration"
-                type="number"
-                min={1}
-                max={60}
-                value={effectiveMinDuration.toString()}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value);
-                  if (!isNaN(val)) setMinDuration(val);
-                  else if (e.target.value === "") setMinDuration(0);
-                }}
-                onBlur={() => setMinDuration(Math.max(1, Math.min(60, effectiveMinDuration || 3)))}
-                className="mt-1.5"
-                disabled={generateMutation.isPending || backgroundMutation.isPending}
-                data-testid="input-min-duration"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Minimum scene duration</p>
-            </div>
-            <div>
-              <Label htmlFor="maxDuration">Max Duration (sec)</Label>
-              <Input
-                id="maxDuration"
-                type="number"
-                min={1}
+                min={5}
                 max={120}
-                value={effectiveMaxDuration.toString()}
+                value={effectiveFirstPageFrequency.toString()}
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
-                  if (!isNaN(val)) setMaxDuration(val);
-                  else if (e.target.value === "") setMaxDuration(0);
+                  if (!isNaN(val)) setFirstPageFrequency(val);
+                  else if (e.target.value === "") setFirstPageFrequency(0);
                 }}
-                onBlur={() => setMaxDuration(Math.max(effectiveMinDuration, Math.min(120, effectiveMaxDuration || 15)))}
+                onBlur={() => setFirstPageFrequency(Math.max(5, Math.min(120, effectiveFirstPageFrequency || 5)))}
                 className="mt-1.5"
-                disabled={generateMutation.isPending || backgroundMutation.isPending}
-                data-testid="input-max-duration"
+
+                data-testid="input-first-page-frequency"
               />
-              <p className="text-xs text-muted-foreground mt-1">Maximum scene duration</p>
+              <p className="text-xs text-muted-foreground mt-1">First 3000 characters frequency</p>
+            </div>
+            <div>
+              <Label htmlFor="restFrequency">Rest Frequency (sec)</Label>
+              <Input
+                id="restFrequency"
+                type="number"
+                min={5}
+                max={240}
+                value={effectiveRestFrequency.toString()}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  if (!isNaN(val)) setRestFrequency(val);
+                  else if (e.target.value === "") setRestFrequency(0);
+                }}
+                onBlur={() => setRestFrequency(Math.max(5, Math.min(240, effectiveRestFrequency || 60)))}
+                className="mt-1.5"
+
+                data-testid="input-rest-frequency"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Remaining video frequency</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-3">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Type className="w-5 h-5" />
-            Caption Style
-          </CardTitle>
-          <CardDescription>Add captions/subtitles to your video</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {captionStyles.map((styleId) => (
-                <div
-                  key={styleId}
-                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                    captionStyle === styleId
-                      ? "border-primary bg-primary/5"
-                      : "border-muted hover:border-muted-foreground/50"
-                  }`}
-                  onClick={() => setCaptionStyle(styleId)}
-                >
-                  <div className="font-medium text-sm">
-                    {captionStyleLabels[styleId]?.name || styleId}
-                  </div>
-                  {styleId !== "none" && (
-                    <div className="mt-2 p-2 bg-gray-900 rounded text-center">
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          fontFamily: "Arial, sans-serif",
-                          ...captionStyleLabels[styleId]?.preview,
-                        }}
-                      >
-                        Sample
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {captionStyle !== "none" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Caption Position</label>
-                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                  {captionPositions.map((posId) => (
-                    <div
-                      key={posId}
-                      className={`p-2 rounded-lg border-2 cursor-pointer transition-all text-center ${
-                        captionPosition === posId
-                          ? "border-primary bg-primary/5"
-                          : "border-muted hover:border-muted-foreground/50"
-                      }`}
-                      onClick={() => setCaptionPosition(posId)}
-                    >
-                      <div className="text-xs font-medium">
-                        {captionPositionLabels[posId]}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Captions will be burned into the final video during rendering.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="lg:col-span-3">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5" />
-            Generate Assets
-          </CardTitle>
-          <CardDescription>
-            Create audio narration and images for all {sceneCount} scenes
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {generateMutation.isPending ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                <span className="text-sm font-medium">{currentTask}</span>
-              </div>
-              <Progress value={generationProgress} className="h-2" />
-              <p className="text-xs text-muted-foreground text-center">
-                This may take a few minutes depending on the number of scenes
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button
-                className="flex-1"
-                size="lg"
-                onClick={() => generateMutation.mutate()}
-                disabled={sceneCount === 0}
-                data-testid="button-generate-assets"
-              >
-                <Sparkles className="w-5 h-5 mr-2" />
-                Generate Now
-              </Button>
-              <Button
-                className="flex-1"
-                size="lg"
-                variant="secondary"
-                onClick={() => backgroundMutation.mutate()}
-                disabled={sceneCount === 0 || backgroundMutation.isPending}
-                data-testid="button-generate-background"
-              >
-                {backgroundMutation.isPending ? (
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                ) : (
-                  <Zap className="w-5 h-5 mr-2" />
-                )}
-                Generate in Background
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

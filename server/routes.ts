@@ -3,7 +3,9 @@ import type { Server } from "http";
 import * as path from "path";
 import * as fs from "fs";
 import { setupAuth, requireAuth } from "./auth";
+import { storage } from "./storage";
 import { startCleanupScheduler } from "./services/cleanup";
+import { resumeIncompleteJobs } from "./services/resumeJobs";
 
 // Controllers
 import { AuthController } from "./controllers/AuthController";
@@ -64,6 +66,7 @@ export async function registerRoutes(
   app.get("/api/voices", assetController.getVoices.bind(assetController));
   app.post("/api/tts-preview", assetController.previewTTS.bind(assetController));
   app.post("/api/generate-image", requireAuth, assetController.generateImage.bind(assetController));
+
   app.post("/api/regenerate-scene-image", requireAuth, assetController.regenerateSceneImage.bind(assetController));
 
   // ==========================================
@@ -121,7 +124,7 @@ export async function registerRoutes(
     const level = req.query.level as "info" | "warn" | "error" | "debug" | undefined;
     const category = req.query.category as string | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
-    
+
     const logs = getSystemLogs({ level, category, limit });
     return res.json(logs);
   });
@@ -141,9 +144,53 @@ export async function registerRoutes(
 
   // Generation
   app.post("/api/generate-script", requireAuth, projectController.generateScript.bind(projectController));
+  app.post("/api/script-wizard", requireAuth, projectController.scriptWizard.bind(projectController));
   app.post("/api/generate-assets", requireAuth, projectController.generateAssets.bind(projectController));
   app.post("/api/generate-background", requireAuth, projectController.generateAssetsBackground.bind(projectController));
   app.post("/api/render-video", requireAuth, projectController.renderVideo.bind(projectController));
+
+  // Resume a stuck/errored generation from where it left off
+  app.post("/api/projects/:id/resume", requireAuth, async (req, res) => {
+    try {
+      const project = await storage.getVideoProject(req.params.id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      if (project.status === "ready") {
+        return res.status(400).json({ error: "Project is already complete" });
+      }
+
+      // Set status back to generating so the resume logic works
+      await storage.updateVideoProject(project.id, {
+        status: "generating",
+        errorMessage: null as any,
+        progressMessage: "Resuming generation...",
+      });
+
+      // Use the resume service
+      const { resumeIncompleteJobs } = await import("./services/resumeJobs");
+      // Fire and forget — resume runs in background
+      resumeIncompleteJobs().catch(err => {
+        console.error("[RESUME] Manual resume failed:", err);
+      });
+
+      return res.json({
+        success: true,
+        message: `Resuming project "${project.title}" from last completed scene.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return res.status(500).json({ error: `Resume failed: ${message}` });
+    }
+  });
+
+  // Temporary test route for debugging queue
+  app.post("/api/test-queue", async (req, res) => {
+    const { addScriptToQueue } = await import("./services/queue");
+    const id = await addScriptToQueue(req.body);
+    res.json({ id });
+  });
 
   // Post-processing
   app.post("/api/projects/:id/thumbnail", requireAuth, projectController.generateThumbnail.bind(projectController));
@@ -341,6 +388,73 @@ export async function registerRoutes(
     }
     return res.json(job);
   });
+
+  // ==========================================
+  // Danger Zone Routes
+  // ==========================================
+  app.delete("/api/danger-zone/wipe-all", requireAuth, async (_req, res) => {
+    try {
+      // 1. Delete all video projects from database
+      const allProjects = await storage.getAllVideoProjects();
+      for (const project of allProjects) {
+        await storage.deleteVideoProject(project.id);
+      }
+
+      // 2. Remove generated asset files from disk
+      let deletedFiles = 0;
+      let skippedFiles = 0;
+      const assetsDir = path.join(process.cwd(), "public", "assets");
+      if (fs.existsSync(assetsDir)) {
+        const entries = fs.readdirSync(assetsDir);
+        for (const entry of entries) {
+          const entryPath = path.join(assetsDir, entry);
+          try {
+            if (fs.statSync(entryPath).isDirectory()) {
+              fs.rmSync(entryPath, { recursive: true, force: true });
+            } else {
+              fs.unlinkSync(entryPath);
+            }
+            deletedFiles++;
+          } catch (err) {
+            skippedFiles++;
+            console.warn(`[WIPE] Skipped locked file: ${entryPath}`);
+          }
+        }
+      }
+
+      // 3. Remove TTS output files
+      const ttsDir = path.join(process.cwd(), "public", "tts-output");
+      if (fs.existsSync(ttsDir)) {
+        const ttsFiles = fs.readdirSync(ttsDir);
+        for (const file of ttsFiles) {
+          try {
+            fs.unlinkSync(path.join(ttsDir, file));
+            deletedFiles++;
+          } catch {
+            skippedFiles++;
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        deletedProjects: allProjects.length,
+        deletedFiles,
+        freedMB: 0,
+        message: `Wiped ${allProjects.length} projects. Deleted ${deletedFiles} file(s)${skippedFiles ? `, skipped ${skippedFiles} locked file(s)` : ""}.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return res.status(500).json({ error: `Wipe failed: ${message}` });
+    }
+  });
+
+  // Resume any interrupted generation jobs after a short delay
+  setTimeout(() => {
+    resumeIncompleteJobs().catch(err => {
+      console.error("[RESUME] Failed to resume jobs:", err);
+    });
+  }, 5000);
 
   return httpServer;
 }

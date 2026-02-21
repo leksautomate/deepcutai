@@ -17,10 +17,8 @@ const customVoiceSchema = z.object({
 const settingsUpdateSchema = z.object({
     customVoices: z.array(customVoiceSchema).optional(),
     sceneSettings: z.object({
-        targetWords: z.number().min(1).max(200),
-        maxWords: z.number().min(1).max(300),
-        minDuration: z.number().min(1).max(60),
-        maxDuration: z.number().min(1).max(120),
+        firstPageFrequency: z.number().min(5).max(120),
+        restFrequency: z.number().min(5).max(240),
     }).optional(),
     imageStyleSettings: z.object({
         art_style: z.string(),
@@ -83,6 +81,8 @@ export class SettingsController extends BaseController {
                 pollinations: hasKey("pollinations", "POLLINATIONS_API_KEY"),
                 inworld: hasKey("inworld", "INWORLD_API_KEY"),
                 whisk: hasKey("whisk", "WHISK_COOKIE"),
+                pexels: hasKey("pexels", "PEXELS_API_KEY"),
+                pixabay: hasKey("pixabay", "PIXABAY_API_KEY"),
                 whiskStatus: whiskStatus,
             });
         } catch (error) {
@@ -96,7 +96,7 @@ export class SettingsController extends BaseController {
     async updateApiKeys(req: Request, res: Response) {
         try {
             const userId = this.getUserId(req);
-            const { gemini, groq, speechify, freepik, wavespeed, runpod, pollinations, inworld, whisk } = req.body;
+            const { gemini, groq, speechify, freepik, wavespeed, runpod, pollinations, inworld, whisk, pexels, pixabay } = req.body;
 
             // Helper to save API key to database (upsert)
             const saveKeyToDb = async (provider: string, apiKey: string | undefined) => {
@@ -120,6 +120,8 @@ export class SettingsController extends BaseController {
                 saveKeyToDb("pollinations", pollinations),
                 saveKeyToDb("inworld", inworld),
                 saveKeyToDb("whisk", whisk),
+                saveKeyToDb("pexels", pexels),
+                saveKeyToDb("pixabay", pixabay),
             ]);
 
             // Also set in process.env for immediate use (runtime only)
@@ -132,6 +134,8 @@ export class SettingsController extends BaseController {
             if (pollinations?.trim()) process.env.POLLINATIONS_API_KEY = pollinations.trim();
             if (inworld?.trim()) process.env.INWORLD_API_KEY = inworld.trim();
             if (whisk?.trim()) process.env.WHISK_COOKIE = whisk.trim();
+            if (pexels?.trim()) process.env.PEXELS_API_KEY = pexels.trim();
+            if (pixabay?.trim()) process.env.PIXABAY_API_KEY = pixabay.trim();
 
             this.logInfo("API", "API keys saved to database", {
                 userId,
@@ -144,6 +148,8 @@ export class SettingsController extends BaseController {
                 pollinations: !!pollinations?.trim(),
                 inworld: !!inworld?.trim(),
                 whisk: !!whisk?.trim(),
+                pexels: !!pexels?.trim(),
+                pixabay: !!pixabay?.trim(),
             });
 
             // Return updated status
@@ -167,6 +173,8 @@ export class SettingsController extends BaseController {
                     pollinations: hasKey("pollinations", "POLLINATIONS_API_KEY"),
                     inworld: hasKey("inworld", "INWORLD_API_KEY"),
                     whisk: hasKey("whisk", "WHISK_COOKIE"),
+                    pexels: hasKey("pexels", "PEXELS_API_KEY"),
+                    pixabay: hasKey("pixabay", "PIXABAY_API_KEY"),
                 },
             });
         } catch (error) {

@@ -7,6 +7,7 @@ import { renderVideo, generateThumbnail, generateChapters } from "./ffmpeg";
 import { logInfo, logError } from "./logger";
 import { getAppSettings, splitScriptIntoScenes } from "./settings";
 import { getResolvedApiKey } from "./api-keys";
+
 import { resolutionOptions, motionEffects, type VideoManifest, type Scene, type TransitionEffect } from "@shared/schema";
 
 import * as path from "path";
@@ -32,7 +33,7 @@ interface ScriptQueuedProject {
   script: string;
   title: string;
   voiceId: string;
-  imageStyle: string;
+  imageStyle?: string;
   customStyleText?: string;
   resolution: string;
   transition: string;
@@ -104,17 +105,27 @@ async function processScriptProject(project: ScriptQueuedProject) {
       const audioPath = path.join(projectDir, `${sceneId}.mp3`);
       let ttsResult;
 
+      // Resolve custom/clone voice IDs to actual provider voice IDs
+      let resolvedVoiceId = project.voiceId || (project.ttsProvider === "inworld" ? "Dennis" : "george");
+      const customVoice = settings.customVoices.find(
+        (v: any) => v.id === project.voiceId || v.name.toLowerCase() === (project.voiceId || "").toLowerCase() || v.voiceId === project.voiceId
+      );
+      if (customVoice) {
+        resolvedVoiceId = customVoice.voiceId;
+        logInfo("QUEUE", `Resolved custom voice "${project.voiceId}" → "${resolvedVoiceId}"`, { projectId: project.id });
+      }
+
       if (project.ttsProvider === "inworld") {
         const { generateInworldTTS } = await import("./inworld-tts");
         ttsResult = await generateInworldTTS({
           text: sceneText,
-          voiceId: project.voiceId,
+          voiceId: resolvedVoiceId,
           outputPath: audioPath,
         });
       } else {
         ttsResult = await generateTTS({
           text: sceneText,
-          voiceId: project.voiceId,
+          voiceId: resolvedVoiceId,
           outputPath: audioPath,
         });
       }
@@ -137,9 +148,9 @@ async function processScriptProject(project: ScriptQueuedProject) {
       });
 
       const imagePath = path.join(projectDir, `${sceneId}.png`);
-      let imageResult: { success: boolean; error?: string };
+      let imageResult: { success: boolean; error?: string } | null = null;
 
-      // Use selected image generator with proper dimensions
+      // Handle Image Generation
       if (imageGenerator === "pollinations") {
         const { generateImageWithPollinations } = await import("./image-generators");
         try {
@@ -190,6 +201,11 @@ async function processScriptProject(project: ScriptQueuedProject) {
       } else if (imageGenerator === "whisk") {
         const { generateImageWithWhisk } = await import("./image-generators");
         try {
+          // Add delay between consecutive Whisk generations to avoid rate limiting
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+
           const cookie = await getResolvedApiKey("whisk");
           if (!cookie) {
             throw new Error("Google Whisk cookie not configured. Please add your Google cookie in Settings.");
@@ -238,7 +254,7 @@ async function processScriptProject(project: ScriptQueuedProject) {
         id: sceneId,
         text: sceneText,
         audioFile: ttsResult.audioPath ? `/assets/${project.id}/${sceneId}.mp3` : undefined,
-        imageFile: imageResult.success ? `/assets/${project.id}/${sceneId}.png` : undefined,
+        imageFile: imageResult?.success ? `/assets/${project.id}/${sceneId}.png` : undefined,
         durationInSeconds: ttsResult.durationSeconds,
         motion: selectedMotion,
         transition: selectedTransition as TransitionEffect,
@@ -466,6 +482,11 @@ async function processProject(project: QueuedProject) {
       } else if (imageGenerator === "whisk") {
         const { generateImageWithWhisk } = await import("./image-generators");
         try {
+          // Add delay between consecutive Whisk generations to avoid rate limiting
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+
           const cookie = await getResolvedApiKey("whisk");
           if (!cookie) {
             throw new Error("Google Whisk cookie not configured. Please add your Google cookie in Settings.");

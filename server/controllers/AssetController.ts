@@ -11,6 +11,7 @@ import { storage } from '../storage';
 import { getResolvedApiKey } from '../services/api-keys';
 import type { VideoManifest } from '@shared/schema';
 
+
 // Helper for assets directory
 const ASSETS_DIR = path.join(process.cwd(), "public", "assets");
 

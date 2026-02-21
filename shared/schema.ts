@@ -10,72 +10,8 @@ export type MotionEffect = typeof motionEffects[number];
 export const transitionEffects = ["none", "fade", "dissolve", "wipe-left", "wipe-right", "wipe-up", "wipe-down"] as const;
 export type TransitionEffect = typeof transitionEffects[number];
 
-// Caption style types
-export const captionStyles = ["none", "classic", "bold-yellow", "minimal", "netflix", "karaoke", "documentary", "tiktok", "boxed"] as const;
-export type CaptionStyleId = typeof captionStyles[number];
-
-// Caption position types (ASS alignment values)
-export const captionPositions = ["bottom-center", "bottom-left", "bottom-right", "top-center", "top-left", "top-right", "middle-center"] as const;
-export type CaptionPosition = typeof captionPositions[number];
-
-// Caption position labels
-export const captionPositionLabels: Record<CaptionPosition, string> = {
-  "bottom-center": "Bottom Center",
-  "bottom-left": "Bottom Left",
-  "bottom-right": "Bottom Right",
-  "top-center": "Top Center",
-  "top-left": "Top Left",
-  "top-right": "Top Right",
-  "middle-center": "Center",
-};
-
-// Map positions to ASS alignment values
-export const captionPositionToAlignment: Record<CaptionPosition, number> = {
-  "bottom-left": 1,
-  "bottom-center": 2,
-  "bottom-right": 3,
-  "middle-center": 5,
-  "top-left": 7,
-  "top-center": 8,
-  "top-right": 9,
-};
-
-// Caption style labels and preview styles
-export const captionStyleLabels: Record<CaptionStyleId, { name: string; preview: { color?: string; fontWeight?: string; fontStyle?: string; textShadow?: string; backgroundColor?: string; padding?: string } }> = {
-  none: { name: "No Captions", preview: {} },
-  classic: { 
-    name: "Classic White", 
-    preview: { color: "#fff", textShadow: "2px 2px 4px #000, -1px -1px 2px #000" } 
-  },
-  "bold-yellow": { 
-    name: "Bold Yellow", 
-    preview: { color: "#FFFF00", fontWeight: "bold", textShadow: "3px 3px 6px #000" } 
-  },
-  minimal: { 
-    name: "Minimal", 
-    preview: { color: "#fff", fontWeight: "normal" } 
-  },
-  netflix: { 
-    name: "Netflix Style", 
-    preview: { color: "#fff", fontWeight: "bold", backgroundColor: "rgba(0,0,0,0.7)", padding: "4px 8px" } 
-  },
-  karaoke: { 
-    name: "Karaoke Pop", 
-    preview: { color: "#00FF00", fontWeight: "bold", textShadow: "2px 2px 0 #FF00FF, -2px -2px 0 #FF00FF" } 
-  },
-  documentary: { 
-    name: "Documentary", 
-    preview: { color: "#fff", fontStyle: "italic", textShadow: "1px 1px 3px #404040" } 
-  },
-  tiktok: { 
-    name: "TikTok Viral", 
-    preview: { color: "#fff", fontWeight: "900", textShadow: "4px 4px 0 #000, -2px -2px 0 #000" } 
-  },
-  boxed: { 
-    name: "Boxed", 
-    preview: { color: "#fff", backgroundColor: "rgba(0,0,0,0.8)", padding: "6px 12px" } 
-  },
-};
+// Caption style types (ASS-based + Remotion animated)
+// Removed caption logic
 
 // Video status
 export const videoStatuses = ["draft", "generating", "ready", "error"] as const;
@@ -90,12 +26,16 @@ export const wordAlignmentSchema = z.object({
 
 export type WordAlignment = z.infer<typeof wordAlignmentSchema>;
 
+// Visual effect types for Remotion overlays
+// Removed visual effects
+
 // Scene schema for manifest
 export const sceneSchema = z.object({
   id: z.string(),
   text: z.string(),
   audioFile: z.string().optional(),
   imageFile: z.string().optional(),
+  videoFile: z.string().optional(),
   durationInSeconds: z.number(),
   motion: z.enum(motionEffects).optional(),
   transition: z.enum(transitionEffects).optional(),
@@ -111,8 +51,6 @@ export const videoManifestSchema = z.object({
   height: z.number().default(720),
   scenes: z.array(sceneSchema),
   transitionDuration: z.number().default(0.5),
-  captionStyle: z.enum(captionStyles).default("classic"),
-  captionPosition: z.enum(captionPositions).default("bottom-center"),
 });
 
 export type VideoManifest = z.infer<typeof videoManifestSchema>;
@@ -136,6 +74,9 @@ export const videoProjects = pgTable("video_projects", {
   imageStyle: text("image_style"),
   customStyleText: text("custom_style_text"),
   imageGenerator: text("image_generator").default("seedream"),
+  videoGenerator: text("video_generator"),
+  ttsProvider: text("tts_provider").default("inworld"),
+  resolution: text("resolution").default("1080p"),
   manifest: jsonb("manifest").$type<VideoManifest | null>(),
   outputPath: text("output_path"),
   thumbnailPath: text("thumbnail_path"),
@@ -234,6 +175,8 @@ export const exportQualities = [
   { id: "720p", label: "HD (720p)", width: 1280, height: 720, bitrate: "4M" },
   { id: "1080p", label: "Full HD (1080p)", width: 1920, height: 1080, bitrate: "8M" },
   { id: "4k", label: "4K Ultra HD", width: 3840, height: 2160, bitrate: "20M" },
+  { id: "vertical", label: "Vertical HD (9:16)", width: 1080, height: 1920, bitrate: "8M" },
+  { id: "square", label: "Square (1:1)", width: 1080, height: 1080, bitrate: "6M" },
 ] as const;
 export type ExportQuality = typeof exportQualities[number]["id"];
 
@@ -288,6 +231,40 @@ export const renderVideoRequestSchema = z.object({
 });
 
 export type RenderVideoRequest = z.infer<typeof renderVideoRequestSchema>;
+
+// Script Wizard request schemas (4-step guided flow)
+export const wizardStep1RequestSchema = z.object({
+  step: z.literal(1),
+  topic: z.string().min(1, "Topic is required"),
+});
+
+export const wizardStep2RequestSchema = z.object({
+  step: z.literal(2),
+  topic: z.string().min(1),
+  selectedAngle: z.string().min(1),
+});
+
+export const wizardStep3RequestSchema = z.object({
+  step: z.literal(3),
+  topic: z.string().min(1),
+  selectedIdea: z.string().min(1),
+});
+
+export const wizardStep4RequestSchema = z.object({
+  step: z.literal(4),
+  topic: z.string().min(1),
+  selectedIdea: z.string().min(1),
+  approvedHook: z.string().min(1),
+});
+
+export const scriptWizardRequestSchema = z.discriminatedUnion("step", [
+  wizardStep1RequestSchema,
+  wizardStep2RequestSchema,
+  wizardStep3RequestSchema,
+  wizardStep4RequestSchema,
+]);
+
+export type ScriptWizardRequest = z.infer<typeof scriptWizardRequestSchema>;
 
 // Image generation request schema
 export const generateImageRequestSchema = z.object({

@@ -7,7 +7,6 @@ import {
     Sparkles,
     Settings,
     LayoutDashboard,
-    Film,
     LogOut,
     ScrollText,
     Mic2
@@ -19,9 +18,10 @@ export function Sidebar() {
 
     const navItems = [
         { href: "/", icon: Video, label: "Create", testId: "nav-create" },
+
         { href: "/image-generator", icon: Sparkles, label: "Images", testId: "nav-images" },
         { href: "/long-tts", icon: Mic2, label: "Long TTS", testId: "nav-tts" },
-        { href: "/my-videos", icon: Film, label: "Videos", testId: "nav-videos" },
+        { href: "/my-videos", icon: Video, label: "Videos", testId: "nav-videos" },
         { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", testId: "nav-dashboard" },
         { href: "/logs", icon: ScrollText, label: "Logs", testId: "nav-logs" },
         { href: "/settings", icon: Settings, label: "Settings", testId: "nav-settings" },
@@ -33,8 +33,8 @@ export function Sidebar() {
             <div className="p-6 border-b border-white/5">
                 <Link href="/">
                     <div className="flex items-center gap-3 cursor-pointer group">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-all duration-300 group-hover:scale-105">
-                            <Video className="w-5 h-5 text-white" />
+                        <div className="flex items-center justify-center w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-all duration-300 group-hover:scale-105">
+                            <img src="/logo.png" alt="DeepCut AI" className="w-full h-full object-cover" />
                         </div>
                         <div>
                             <h1 className="text-xl font-display font-bold flex items-center gap-2 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80">
@@ -56,8 +56,8 @@ export function Sidebar() {
                             <Button
                                 variant="ghost"
                                 className={`w-full justify-start gap-3 relative overflow-hidden transition-all duration-300 ${isActive
-                                        ? "bg-primary/10 text-primary shadow-sm hover:bg-primary/15"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                                    ? "bg-primary/10 text-primary shadow-sm hover:bg-primary/15"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                                     }`}
                                 data-testid={item.testId}
                             >

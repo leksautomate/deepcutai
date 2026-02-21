@@ -6,8 +6,8 @@ import { z } from 'zod';
 import { BaseController } from './BaseController';
 import { storage } from '../storage';
 import { logError, logInfo } from '../services/logger';
-import { generateScript } from '../services/gemini';
-import { generateScriptWithGroq } from '../services/groq';
+import { generateScript, wizardGenerateAngles, wizardGenerateIdeas, wizardGenerateHook, wizardGenerateFullScript } from '../services/gemini';
+import { generateScriptWithGroq, wizardGenerateAnglesWithGroq, wizardGenerateIdeasWithGroq, wizardGenerateHookWithGroq, wizardGenerateFullScriptWithGroq } from '../services/groq';
 import { getAppSettings } from '../services/settings';
 import { splitScriptIntoScenes } from '../services/settings';
 import { generateTTS } from '../services/speechify';
@@ -17,10 +17,12 @@ import { renderVideo, generateThumbnail, concatenateVideos, generateChapters } f
 import { getResolvedApiKey } from '../services/api-keys';
 import {
     generateScriptRequestSchema,
+    scriptWizardRequestSchema,
     resolutionOptions,
     motionEffects,
     type VideoManifest,
-    type Scene
+    type Scene,
+    type ScriptWizardRequest,
 } from '@shared/schema';
 
 // Helper for assets directory
@@ -44,14 +46,13 @@ const generateAssetsSchema = z.object({
     savedStyleId: z.string().optional(),
     resolution: z.string().optional(),
     motionEffect: z.enum(motionEffects).optional(),
-    imageGenerator: z.enum(["seedream", "wavespeed", "runpod", "pollinations", "whisk"]).optional(),
+    imageGenerator: z.enum(["seedream", "wavespeed", "runpod", "pollinations", "whisk"]).or(z.literal("")).optional(),
+    videoGenerator: z.enum(["pexels", "pixabay"]).or(z.literal("")).optional(),
     pollinationsModel: z.string().optional(),
     ttsProvider: z.enum(["speechify", "inworld"]).optional(),
     sceneSettings: z.object({
-        targetWords: z.number().optional(),
-        maxWords: z.number().optional(),
-        minDuration: z.number().optional(),
-        maxDuration: z.number().optional(),
+        firstPageFrequency: z.number().min(5).max(120).optional(),
+        restFrequency: z.number().min(5).max(240).optional(),
     }).optional(),
 });
 
@@ -89,6 +90,10 @@ export class ProjectController extends BaseController {
                 voiceId: body.voiceId,
                 imageStyle: body.imageStyle,
                 customStyleText: body.customStyleText,
+                imageGenerator: body.imageGenerator || null,
+                videoGenerator: body.videoGenerator || null,
+                ttsProvider: body.ttsProvider || "inworld",
+                resolution: body.resolution || "1080p",
                 outputPath: null,
             });
 
@@ -99,8 +104,8 @@ export class ProjectController extends BaseController {
                 const existingProject = await storage.getVideoProject(project.id);
                 if (!existingProject?.errorMessage) {
                     const errorMsg = err instanceof Error ? err.message : String(err);
-                    await storage.updateVideoProject(project.id, { 
-                        status: "error", 
+                    await storage.updateVideoProject(project.id, {
+                        status: "error",
                         errorMessage: errorMsg || "Unknown error during generation"
                     });
                 }
@@ -116,13 +121,14 @@ export class ProjectController extends BaseController {
         }
     }
 
-    private async runBackgroundGeneration(projectId: string, body: any, userId: string) {
-        const { script, voiceId, imageStyle, customStyleText, resolution, motionEffect, imageGenerator, pollinationsModel, ttsProvider, sceneSettings, captionStyle } = body;
+    public async runBackgroundGeneration(projectId: string, body: any, userId: string, startFromScene: number = 0) {
+        const { script, voiceId, imageStyle, customStyleText, resolution, motionEffect, imageGenerator, pollinationsModel, ttsProvider, sceneSettings } = body;
 
         // Log configuration
-        logInfo("BG_GEN", "Starting background generation", {
+        logInfo("BG_GEN", startFromScene > 0 ? `Resuming generation from scene ${startFromScene + 1}` : "Starting background generation", {
             projectId,
-            settings: { imageGenerator, pollinationsModel, ttsProvider, captionStyle }
+            settings: { imageGenerator, pollinationsModel, ttsProvider },
+            startFromScene,
         });
 
         // 1. Script Processing
@@ -138,7 +144,7 @@ export class ProjectController extends BaseController {
         const resOption = resolutionOptions.find(r => r.id === resolution);
         const resWidth = resOption?.width || 1280;
         const resHeight = resOption?.height || 720;
-        
+
         const aspectRatio = resWidth / resHeight;
         let width: number, height: number;
         if (aspectRatio > 1) {
@@ -157,8 +163,41 @@ export class ProjectController extends BaseController {
         const projectDir = path.join(ASSETS_DIR, projectId);
         if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
 
-        // Iterate
-        for (let i = 0; i < scenesText.length; i++) {
+        // Pre-populate already-completed scenes when resuming
+        if (startFromScene > 0) {
+            for (let j = 0; j < startFromScene && j < scenesText.length; j++) {
+                const sceneId = `scene-${j + 1}`;
+                const audioPath = path.join(projectDir, `${sceneId}.mp3`);
+                const imagePath = path.join(projectDir, `${sceneId}.png`);
+                const videoFilePath = path.join(projectDir, `${sceneId}.mp4`);
+
+                // Get audio duration from ffprobe if possible, fallback to 5s
+                let duration = 5;
+                try {
+                    const { execSync } = await import("child_process");
+                    const durationStr = execSync(
+                        `ffprobe -v quiet -show_entries format=duration -of csv=p=0 "${audioPath}"`,
+                        { encoding: "utf-8" }
+                    ).trim();
+                    duration = parseFloat(durationStr) || 5;
+                } catch { /* fallback to 5s */ }
+
+                generatedScenes.push({
+                    id: sceneId,
+                    text: scenesText[j],
+                    audioFile: fs.existsSync(audioPath) ? `/assets/${projectId}/${sceneId}.mp3` : undefined,
+                    imageFile: fs.existsSync(imagePath) ? `/assets/${projectId}/${sceneId}.png` : undefined,
+                    videoFile: fs.existsSync(videoFilePath) ? `/assets/${projectId}/${sceneId}.mp4` : undefined,
+                    durationInSeconds: duration,
+                    motion: motionEffect || "zoom-in",
+                    transition: "fade",
+                });
+            }
+            logInfo("BG_GEN", `Pre-populated ${generatedScenes.length} completed scenes`, { projectId });
+        }
+
+        // Iterate (start from startFromScene)
+        for (let i = startFromScene; i < scenesText.length; i++) {
             const sceneText = scenesText[i];
             const sceneId = `scene-${i + 1}`;
 
@@ -172,19 +211,30 @@ export class ProjectController extends BaseController {
                 // TTS - Use the correct provider based on ttsProvider setting
                 const ttsPath = path.join(projectDir, `${sceneId}.mp3`);
                 let ttsResult: { audioPath: string; durationSeconds: number; success: boolean; wordAlignment?: { words: string[]; wordStartTimeSeconds: number[]; wordEndTimeSeconds: number[] } };
-                
+
                 const effectiveTtsProvider = ttsProvider || "inworld";
+
+                // Resolve custom/clone voice IDs to actual provider voice IDs
+                let resolvedVoiceId = voiceId || (effectiveTtsProvider === "inworld" ? "Dennis" : "george");
+                const customVoice = getAppSettings().customVoices.find(
+                    v => v.id === voiceId || v.name.toLowerCase() === (voiceId || "").toLowerCase() || v.voiceId === voiceId
+                );
+                if (customVoice) {
+                    resolvedVoiceId = customVoice.voiceId;
+                    logInfo("BG_GEN", `Resolved custom voice "${voiceId}" → "${resolvedVoiceId}"`, { projectId });
+                }
+
                 if (effectiveTtsProvider === "inworld") {
                     const { generateInworldTTS } = await import("../services/inworld-tts");
                     ttsResult = await generateInworldTTS({
                         text: sceneText,
-                        voiceId: voiceId || "Dennis",
+                        voiceId: resolvedVoiceId,
                         outputPath: ttsPath,
                     });
                 } else {
                     const speechifyResult = await generateTTS({
                         text: sceneText,
-                        voiceId: voiceId || "george",
+                        voiceId: resolvedVoiceId,
                         outputPath: ttsPath,
                     });
                     ttsResult = { ...speechifyResult, wordAlignment: undefined };
@@ -210,7 +260,7 @@ export class ProjectController extends BaseController {
                         fine_details: "",
                     };
                 }
-                
+
                 const imagePrompt = await generateImagePromptWithGroq({
                     sceneText,
                     imageStyle: imageStyle || "cinematic",
@@ -218,11 +268,12 @@ export class ProjectController extends BaseController {
                 });
 
                 const imagePath = path.join(projectDir, `${sceneId}.png`);
-                let imageSuccess = false;
 
                 // Use the specified image generator (support all generators)
                 const selectedGenerator = imageGenerator || "wavespeed";
-                
+
+                let imageResult: { success: boolean; error?: string } | null = null;
+
                 if (selectedGenerator === "pollinations") {
                     const { generateImageWithPollinations } = await import("../services/image-generators");
                     try {
@@ -235,7 +286,7 @@ export class ProjectController extends BaseController {
                             pollinationsModel
                         );
                         fs.writeFileSync(imagePath, result.imageBuffer);
-                        imageSuccess = true;
+                        imageResult = { success: true };
                     } catch (error) {
                         const message = error instanceof Error ? error.message : String(error);
                         throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
@@ -255,7 +306,7 @@ export class ProjectController extends BaseController {
                         if (!imageResponse.ok) throw new Error(`Failed to download image from ${imageUrl}`);
                         const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
                         fs.writeFileSync(imagePath, imageBuffer);
-                        imageSuccess = true;
+                        imageResult = { success: true };
                     } catch (error) {
                         const message = error instanceof Error ? error.message : String(error);
                         throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
@@ -273,7 +324,7 @@ export class ProjectController extends BaseController {
                         if (!imageResponse.ok) throw new Error(`Failed to download image from Whisk`);
                         const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
                         fs.writeFileSync(imagePath, imageBuffer);
-                        imageSuccess = true;
+                        imageResult = { success: true };
                     } catch (error) {
                         const message = error instanceof Error ? error.message : String(error);
                         throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
@@ -281,7 +332,7 @@ export class ProjectController extends BaseController {
                 } else {
                     // Default to seedream
                     const apiKey = await getResolvedApiKey("seedream", userId);
-                    const imageResult = await generateImageWithSeestream({
+                    const seedreamResult = await generateImageWithSeestream({
                         prompt: imagePrompt,
                         outputPath: imagePath,
                         width,
@@ -289,17 +340,17 @@ export class ProjectController extends BaseController {
                         style: imageStyle || "cinematic",
                         apiKey: apiKey || undefined
                     });
-                    if (!imageResult.success) {
-                        throw new Error(`Failed to generate image for scene ${i + 1}: ${imageResult.error}`);
+                    if (!seedreamResult.success) {
+                        throw new Error(`Failed to generate image for scene ${i + 1}: ${seedreamResult.error}`);
                     }
-                    imageSuccess = true;
+                    imageResult = { success: true };
                 }
 
                 generatedScenes.push({
                     id: sceneId,
                     text: sceneText,
                     audioFile: ttsResult.success ? `/assets/${projectId}/${sceneId}.mp3` : undefined,
-                    imageFile: imageSuccess ? `/assets/${projectId}/${sceneId}.png` : undefined,
+                    imageFile: imageResult?.success ? `/assets/${projectId}/${sceneId}.png` : undefined,
                     durationInSeconds: ttsResult.durationSeconds || 5,
                     motion: motionEffect || "zoom-in",
                     transition: "fade",
@@ -323,8 +374,6 @@ export class ProjectController extends BaseController {
             height: resHeight,
             scenes: generatedScenes,
             transitionDuration: 0.5,
-            captionStyle: captionStyle || "classic",
-            captionPosition: body.captionPosition || "bottom-center",
         };
         const manifestPath = path.join(projectDir, "manifest.json");
         fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
@@ -341,6 +390,7 @@ export class ProjectController extends BaseController {
             manifest,
             outputPath: outputVideoPath,
             projectDir,
+            skipOverlays: true,
         });
 
         if (!renderResult.success) {
@@ -549,6 +599,65 @@ export class ProjectController extends BaseController {
     }
 
     /**
+     * Script Wizard — 4-step guided script generation
+     */
+    async scriptWizard(req: Request, res: Response) {
+        try {
+            const parsed = this.validateBody(scriptWizardRequestSchema, req.body);
+            const userId = this.getUserId(req);
+            const settings = getAppSettings();
+            const primaryProvider = settings.scriptProvider || "gemini";
+            const fallbackProvider = primaryProvider === "gemini" ? "groq" : "gemini";
+
+            let result: any;
+            let usedProvider = primaryProvider;
+
+            try {
+                result = await this.executeWizardStep(parsed, primaryProvider, userId);
+            } catch (primaryError) {
+                this.logInfo("API", `Wizard step ${parsed.step}: primary (${primaryProvider}) failed, trying fallback (${fallbackProvider})...`);
+                try {
+                    result = await this.executeWizardStep(parsed, fallbackProvider, userId);
+                    usedProvider = fallbackProvider;
+                } catch (fallbackError) {
+                    const error = primaryError as Error;
+                    const message = error.message?.includes("API key not configured")
+                        ? `API key not configured. Please add it in Settings.`
+                        : "Failed to generate content. Please check your API keys in Settings.";
+                    return res.status(500).json({ error: message });
+                }
+            }
+
+            return res.json({ ...result, provider: usedProvider });
+        } catch (error) {
+            return this.handleError(error, res, 'ProjectController.scriptWizard');
+        }
+    }
+
+    private async executeWizardStep(parsed: ScriptWizardRequest, provider: string, userId: string): Promise<any> {
+        switch (parsed.step) {
+            case 1:
+                return provider === "groq"
+                    ? { angles: await wizardGenerateAnglesWithGroq(parsed.topic, userId) }
+                    : { angles: await wizardGenerateAngles(parsed.topic, userId) };
+            case 2:
+                return provider === "groq"
+                    ? { ideas: await wizardGenerateIdeasWithGroq(parsed.topic, parsed.selectedAngle, userId) }
+                    : { ideas: await wizardGenerateIdeas(parsed.topic, parsed.selectedAngle, userId) };
+            case 3:
+                return provider === "groq"
+                    ? { hook: await wizardGenerateHookWithGroq(parsed.topic, parsed.selectedIdea, userId) }
+                    : { hook: await wizardGenerateHook(parsed.topic, parsed.selectedIdea, userId) };
+            case 4: {
+                const scriptResult = provider === "groq"
+                    ? await wizardGenerateFullScriptWithGroq(parsed.topic, parsed.selectedIdea, parsed.approvedHook, userId)
+                    : await wizardGenerateFullScript(parsed.topic, parsed.selectedIdea, parsed.approvedHook, userId);
+                return { title: scriptResult.title, script: scriptResult.script, scenes: scriptResult.scenes };
+            }
+        }
+    }
+
+    /**
      * Generate assets from script (Scene Splitting, TTS, Image Gen)
      */
     async generateAssets(req: Request, res: Response) {
@@ -575,8 +684,8 @@ export class ProjectController extends BaseController {
             const effectiveSceneSettings = sceneSettings && typeof sceneSettings === 'object'
                 ? {
                     ...getAppSettings().sceneSettings,
-                    targetWords: sceneSettings.targetWords || getAppSettings().sceneSettings.targetWords,
-                    maxWords: sceneSettings.maxWords || getAppSettings().sceneSettings.maxWords,
+                    firstPageFrequency: sceneSettings.firstPageFrequency || getAppSettings().sceneSettings.firstPageFrequency,
+                    restFrequency: sceneSettings.restFrequency || getAppSettings().sceneSettings.restFrequency,
                 }
                 : getAppSettings().sceneSettings;
 
@@ -584,6 +693,8 @@ export class ProjectController extends BaseController {
             if (scenes.length === 0) {
                 return res.status(400).json({ error: "No valid scenes found in script" });
             }
+
+            const userId = this.getUserId(req);
 
             let resolvedVoiceId = voiceId || (ttsProvider === "inworld" ? "Dennis" : "george");
             const customVoice = getAppSettings().customVoices.find(
@@ -616,7 +727,6 @@ export class ProjectController extends BaseController {
             }
 
             const generatedScenes: Scene[] = [];
-            const userId = this.getUserId(req);
 
             for (let i = 0; i < scenes.length; i++) {
                 const sceneText = scenes[i].trim();
@@ -748,8 +858,6 @@ export class ProjectController extends BaseController {
                 height: resConfig.height,
                 scenes: generatedScenes,
                 transitionDuration: getAppSettings().transitionSettings.transitionDuration,
-                captionStyle: "classic",
-                captionPosition: "bottom-center",
             };
 
             const manifestPath = path.join(projectDir, "manifest.json");

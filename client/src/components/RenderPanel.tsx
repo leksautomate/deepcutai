@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Video, Download, Loader2, Check, AlertCircle, FileVideo, Clock, HardDrive, Type } from "lucide-react";
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { Video, Download, Loader2, Check, FileVideo, Clock, HardDrive, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -10,14 +11,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { VideoManifest, CaptionStyleId, CaptionPosition } from "@shared/schema";
-import { exportQualities, captionStyles, captionStyleLabels, captionPositions, captionPositionLabels } from "@shared/schema";
+import type { VideoManifest } from "@shared/schema";
+import { exportQualities } from "@shared/schema";
+
+interface GenerationSettings {
+  script: string;
+  voiceId: string;
+  imageStyle: string;
+  customStyleText?: string;
+  resolution: string;
+  imageGenerator?: string;
+  videoGenerator?: string;
+  ttsProvider?: string;
+}
 
 interface RenderPanelProps {
   manifest?: VideoManifest;
   projectId?: string;
   onRenderComplete?: (outputPath: string) => void;
   onGoToAssets?: () => void;
+  generationSettings?: GenerationSettings;
 }
 
 const renderSteps = [
@@ -27,25 +40,48 @@ const renderSteps = [
   { id: "export", name: "Exporting MP4", icon: HardDrive },
 ];
 
-export function RenderPanel({ manifest, projectId, onRenderComplete, onGoToAssets }: RenderPanelProps) {
+export function RenderPanel({ manifest, projectId, onRenderComplete, onGoToAssets, generationSettings }: RenderPanelProps) {
+  const [, setLocation] = useLocation();
   const [renderProgress, setRenderProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [exportQuality, setExportQuality] = useState<string>("1080p");
-  const [captionStyle, setCaptionStyle] = useState<CaptionStyleId>("classic");
-  const [captionPosition, setCaptionPosition] = useState<CaptionPosition>("bottom-center");
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (manifest?.captionStyle) {
-      setCaptionStyle(manifest.captionStyle);
-    }
-    if (manifest?.captionPosition) {
-      setCaptionPosition(manifest.captionPosition);
-    }
-  }, [manifest?.captionStyle, manifest?.captionPosition]);
-
   const selectedQuality = exportQualities.find(q => q.id === exportQuality) || exportQualities[1];
+
+  const backgroundMutation = useMutation({
+    mutationFn: async () => {
+      if (!generationSettings) throw new Error("No generation settings");
+      const response = await apiRequest("POST", "/api/generate-background", {
+        script: generationSettings.script,
+        title: `Video ${Date.now().toString(36)}`,
+        voiceId: generationSettings.voiceId,
+        imageStyle: generationSettings.imageStyle,
+        customStyleText: generationSettings.imageStyle === "custom" ? generationSettings.customStyleText : undefined,
+        resolution: generationSettings.resolution,
+        transition: "fade",
+        imageGenerator: generationSettings.imageGenerator || undefined,
+        videoGenerator: generationSettings.videoGenerator || undefined,
+        ttsProvider: generationSettings.ttsProvider || "inworld",
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Video Generation Started",
+        description: "Your video is being generated in the background. Track progress in My Videos.",
+      });
+      setLocation("/my-videos");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to Start Generation",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const renderMutation = useMutation({
     mutationFn: async () => {
@@ -56,8 +92,6 @@ export function RenderPanel({ manifest, projectId, onRenderComplete, onGoToAsset
 
       const manifestWithCaptions = {
         ...manifest,
-        captionStyle,
-        captionPosition,
       };
 
       const response = await apiRequest("POST", "/api/render-video", {
@@ -94,17 +128,34 @@ export function RenderPanel({ manifest, projectId, onRenderComplete, onGoToAsset
       <Card className="flex items-center justify-center min-h-[400px]">
         <CardContent className="text-center py-12">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-            <AlertCircle className="w-8 h-8 text-muted-foreground" />
+            <Zap className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-medium mb-2">No Video to Render</h3>
+          <h3 className="text-lg font-medium mb-2">Ready to Generate</h3>
           <p className="text-sm text-muted-foreground max-w-sm mb-4">
-            Generate voice and images first to create your video
+            Generate your video with voice narration and images. Configure settings in the Settings tab first.
           </p>
-          {onGoToAssets && (
-            <Button onClick={onGoToAssets} data-testid="button-go-to-assets">
-              Generate Assets
-            </Button>
-          )}
+          <div className="flex flex-col items-center gap-3">
+            {generationSettings && (
+              <Button
+                size="lg"
+                onClick={() => backgroundMutation.mutate()}
+                disabled={backgroundMutation.isPending}
+                data-testid="button-generate-background"
+              >
+                {backgroundMutation.isPending ? (
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="w-5 h-5 mr-2" />
+                )}
+                {backgroundMutation.isPending ? "Starting..." : "Generate in Background"}
+              </Button>
+            )}
+            {onGoToAssets && (
+              <Button variant="outline" size="sm" onClick={onGoToAssets} data-testid="button-go-to-assets">
+                Configure Settings
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     );
@@ -145,68 +196,6 @@ export function RenderPanel({ manifest, projectId, onRenderComplete, onGoToAsset
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="caption-style" className="flex items-center gap-2">
-                <Type className="w-4 h-4" />
-                Caption Style
-              </Label>
-              <Select
-                value={captionStyle}
-                onValueChange={(v) => setCaptionStyle(v as CaptionStyleId)}
-                disabled={renderMutation.isPending}
-              >
-                <SelectTrigger className="mt-1.5" data-testid="select-caption-style">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {captionStyles.map((styleId) => (
-                    <SelectItem key={styleId} value={styleId}>
-                      {captionStyleLabels[styleId]?.name || styleId}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              {captionStyle !== "none" && (
-                <>
-                  <div className="mt-3 p-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg border">
-                    <p className="text-xs text-muted-foreground mb-2">Preview:</p>
-                    <div className="text-center py-4">
-                      <span 
-                        style={{ 
-                          fontSize: "18px",
-                          fontFamily: "Arial, sans-serif",
-                          ...captionStyleLabels[captionStyle]?.preview 
-                        }}
-                      >
-                        Sample caption text
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-3">
-                    <Label htmlFor="caption-position">Caption Position</Label>
-                    <Select
-                      value={captionPosition}
-                      onValueChange={(v) => setCaptionPosition(v as CaptionPosition)}
-                      disabled={renderMutation.isPending}
-                    >
-                      <SelectTrigger className="mt-1.5" data-testid="select-caption-position">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {captionPositions.map((posId) => (
-                          <SelectItem key={posId} value={posId}>
-                            {captionPositionLabels[posId]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
@@ -251,10 +240,10 @@ export function RenderPanel({ manifest, projectId, onRenderComplete, onGoToAsset
                     >
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center ${isComplete
-                            ? "bg-primary text-primary-foreground"
-                            : isActive
-                              ? "bg-primary/20 text-primary"
-                              : "bg-muted text-muted-foreground"
+                          ? "bg-primary text-primary-foreground"
+                          : isActive
+                            ? "bg-primary/20 text-primary"
+                            : "bg-muted text-muted-foreground"
                           }`}
                       >
                         {isComplete ? (

@@ -1,5 +1,5 @@
 import fetch from "node-fetch";
-import { logInfo } from "./logger";
+import { logInfo, logError } from "./logger";
 
 import { withRetry } from "../utils/retry";
 
@@ -352,10 +352,52 @@ export async function generateImageWithRunPod(
   );
 }
 
+// Cached Whisk session to avoid creating a new session/project for every image.
+// After WHISK_REFRESH_INTERVAL images, a new project is created on the same Whisk instance.
+let cachedWhiskSession: { whisk: any; project: any; count: number; cookie: string } | null = null;
+const WHISK_REFRESH_INTERVAL = 10; // Create new project every 10 images
+
+/**
+ * Resets the cached Whisk session, forcing the next call to create a fresh one.
+ * Useful for external callers that detect authentication or session errors.
+ */
+export function resetWhiskSession(): void {
+  cachedWhiskSession = null;
+  logInfo("Whisk", "Session cache manually reset");
+}
+
+/**
+ * Gets or creates a cached Whisk session. Reuses the same Whisk instance
+ * and rotates projects every WHISK_REFRESH_INTERVAL images.
+ */
+async function getWhiskSession(cookie: string): Promise<{ whisk: any; project: any }> {
+  const { Whisk } = await import("@rohitaryal/whisk-api");
+
+  // If no cached session, or cookie changed, create a brand new session
+  if (!cachedWhiskSession || cachedWhiskSession.cookie !== cookie) {
+    logInfo("Whisk", "Creating new Whisk session (no cache or cookie changed)");
+    const whisk = new Whisk(cookie);
+    const project = await whisk.newProject("DeepCut Generation");
+    cachedWhiskSession = { whisk, project, count: 0, cookie };
+    return { whisk: cachedWhiskSession.whisk, project: cachedWhiskSession.project };
+  }
+
+  // If we've hit the refresh interval, create a new project on the existing instance
+  if (cachedWhiskSession.count >= WHISK_REFRESH_INTERVAL) {
+    logInfo("Whisk", `Rotating project after ${cachedWhiskSession.count} images`);
+    const project = await cachedWhiskSession.whisk.newProject("DeepCut Generation");
+    cachedWhiskSession.project = project;
+    cachedWhiskSession.count = 0;
+  }
+
+  return { whisk: cachedWhiskSession.whisk, project: cachedWhiskSession.project };
+}
+
 /**
  * Generates an image using Google Whisk (IMAGEN 3.5).
  * Uses cookie-based authentication, not API key.
- * 
+ * Reuses a cached session to avoid creating a new session/project per image.
+ *
  * @param prompt - The image prompt
  * @param cookie - Google account cookie for authentication
  * @param width - Image width
@@ -368,13 +410,10 @@ export async function generateImageWithWhisk(
   width: number = 1024,
   height: number = 576,
 ): Promise<string> {
-  // Dynamically import the Whisk API (ESM module)
-  const { Whisk } = await import("@rohitaryal/whisk-api");
-  
   // Determine aspect ratio based on dimensions
   const aspectRatio = width / height;
   let whiskAspectRatio: "IMAGE_ASPECT_RATIO_SQUARE" | "IMAGE_ASPECT_RATIO_PORTRAIT" | "IMAGE_ASPECT_RATIO_LANDSCAPE";
-  
+
   if (aspectRatio < 0.9) {
     // Portrait (9:16, etc.)
     whiskAspectRatio = "IMAGE_ASPECT_RATIO_PORTRAIT";
@@ -385,44 +424,62 @@ export async function generateImageWithWhisk(
     // Square (1:1)
     whiskAspectRatio = "IMAGE_ASPECT_RATIO_SQUARE";
   }
-  
+
   logInfo("Whisk", `Generating image with aspect ratio: ${whiskAspectRatio}`, { prompt: prompt.substring(0, 50) });
-  
+
   return withRetry(
     async () => {
-      const whisk = new Whisk(cookie);
-      
-      // Create a project and generate image
-      const project = await whisk.newProject("DeepCut Generation");
-      
-      const media = await project.generateImage({
-        prompt: prompt,
-        aspectRatio: whiskAspectRatio,
-      });
-      
-      // Get the image from the media object
-      // Try URL first, then fall back to base64 encoded media
-      const imageUrl = (media as any).uri || (media as any).url || (media as any).imageUrl;
-      
-      if (imageUrl) {
-        logInfo("Whisk", `Image generated successfully (URL)`, { aspectRatio: whiskAspectRatio });
-        return imageUrl;
+      let session;
+      try {
+        session = await getWhiskSession(cookie);
+      } catch (sessionError) {
+        // If session creation/retrieval fails, invalidate cache and rethrow
+        cachedWhiskSession = null;
+        logError("Whisk", "Failed to get/create session, cache invalidated", sessionError);
+        throw sessionError;
       }
-      
-      // Check for encodedMedia (base64)
-      const encodedMedia = (media as any).encodedMedia;
-      if (encodedMedia) {
-        // Return as data URL
-        logInfo("Whisk", `Image generated successfully (base64)`, { aspectRatio: whiskAspectRatio });
-        return `data:image/png;base64,${encodedMedia}`;
+
+      try {
+        const media = await session.project.generateImage({
+          prompt: prompt,
+          aspectRatio: whiskAspectRatio,
+        });
+
+        // Increment usage count on success
+        if (cachedWhiskSession) {
+          cachedWhiskSession.count++;
+        }
+
+        // Get the image from the media object
+        // Try URL first, then fall back to base64 encoded media
+        const imageUrl = (media as any).uri || (media as any).url || (media as any).imageUrl;
+
+        if (imageUrl) {
+          logInfo("Whisk", `Image generated successfully (URL)`, { aspectRatio: whiskAspectRatio });
+          return imageUrl;
+        }
+
+        // Check for encodedMedia (base64)
+        const encodedMedia = (media as any).encodedMedia;
+        if (encodedMedia) {
+          // Return as data URL
+          logInfo("Whisk", `Image generated successfully (base64)`, { aspectRatio: whiskAspectRatio });
+          return `data:image/png;base64,${encodedMedia}`;
+        }
+
+        logInfo("Whisk", `Media object properties: ${Object.keys(media as any).join(", ")}`);
+        throw new Error("Whisk did not return image data. Media properties: " + JSON.stringify(media));
+      } catch (genError) {
+        // On any generation error, invalidate the cache so next call starts fresh
+        cachedWhiskSession = null;
+        logError("Whisk", "Image generation failed, session cache invalidated", genError);
+        throw genError;
       }
-      
-      logInfo("Whisk", `Media object properties: ${Object.keys(media as any).join(", ")}`);
-      throw new Error("Whisk did not return image data. Media properties: " + JSON.stringify(media));
     },
     {
-      maxRetries: 2,
-      initialDelayMs: 3000,
+      maxRetries: 4,
+      initialDelayMs: 10000,
+      backoffFactor: 1.5,
       retryableErrors: [429, 500, 502, 503, 504],
     },
     "Whisk"

@@ -16,10 +16,14 @@ export interface GroqScriptOptions {
   userId?: string;
 }
 
+export interface GroqSceneData {
+  text: string;
+}
+
 export interface GroqGeneratedScript {
   title: string;
   script: string;
-  scenes: string[];
+  scenes: GroqSceneData[];
 }
 
 const VIRAL_SCRIPT_SYSTEM_PROMPT = `# ROLE
@@ -90,7 +94,10 @@ BAD HOOK (REVEALS TOO MUCH):
 Return ONLY valid JSON with this exact structure:
 {
   "script": "Full script with one sentence per line, paragraphs separated by blank lines",
-  "scenes": ["Paragraph 1 text", "Paragraph 2 text", ...]
+  "scenes": [
+    { "text": "Paragraph 1 text" },
+    { "text": "Paragraph 2 text" }
+  ]
 }
 
 CRITICAL: Each paragraph in "script" becomes one visual scene. Aim for 4-8 scene paragraphs depending on duration.`;
@@ -207,40 +214,40 @@ export async function generateImagePromptWithGroq(options: ImagePromptOptions): 
   // Use custom style if provided, otherwise look up from presets
   const style = customStyle || STYLE_PRESETS[imageStyle] || DEFAULT_HISTORICAL_STYLE;
 
+  const styleDesc = `${style.art_style}. Composition: ${style.composition}. Colors/Lighting: ${style.color_style}. Details: ${style.fine_details}`;
+
   const systemPrompt = `# ROLE
-You are an expert AI image prompt engineer. Your prompts MUST strongly reflect the requested art style.
+You are a professional AI image prompt architect creating prompts for cinematic video scene visualization.
 
-# CRITICAL: ART STYLE IS MANDATORY
-You MUST generate an image prompt in this EXACT style:
-**${style.art_style}**
-
-The image MUST have:
-- Composition: ${style.composition}
-- Colors/Lighting: ${style.color_style}
-- Details: ${style.fine_details}
-
-# INSTRUCTIONS
-1. START the prompt with the art style keywords (e.g., "3D Pixar animation", "anime illustration", "photorealistic")
-2. Describe the scene subjects, actions, and setting
-3. Include specific visual details: lighting, camera angle, atmosphere
-4. Keep the prompt 100-200 words
-5. no mordern tools orequipemnt or UI allowed 
-6. no text or watermarks, no mordern army or uniform is allow each prompt must be detailed and protrat the story without issues
-
-# CONSTRAINTS
-- Output ONLY the image prompt - no explanations
-- 16:9 landscape format
-- NEVER include text, watermarks, or UI elements
-- NEVER use "create an image of" - describe directly`;
-
-  const userPrompt = `# SCENE TO VISUALIZE
+# SCENE TEXT
 "${sceneText}"
 
-# MANDATORY ART STYLE (you MUST apply this style)
-${style.art_style}
+# VISUAL STYLE
+"${styleDesc}"
 
-# YOUR OUTPUT
-Generate ONE image prompt. START with the art style, then describe the scene.`;
+# REQUIREMENTS
+1. Create a detailed, 100-200 word prompt based on the SCENE TEXT and VISUAL STYLE.
+2. You MUST strictly format your output into three distinct sections: "**Style:**", "**Subject:**", and "**Environment & Atmosphere:**".
+3. Include cinematic camera angles, subject positioning, lighting direction, and rich textures.
+4. Expand on the provided visual style to make the prompt highly descriptive.
+
+# CONSTRAINTS
+- Output ONLY the prompt text in the three required sections - no explanations, alternatives, or preamble.
+- Format: 16:9 landscape aspect ratio.
+- FORBIDDEN: text, words, letters, watermarks, signatures, logos, UI elements.
+- FORBIDDEN: meta-phrases like "create an image of" or "an illustration showing".
+
+# OUTPUT FORMAT
+**Style:** [Describe the art style, medium, and color palette based on the VISUAL STYLE]
+
+**Subject:** [Describe the characters, action, camera angle, and positioning based on the SCENE TEXT]
+
+**Environment & Atmosphere:** [Describe the lighting, weather, background, and mood]
+
+# OUTPUT
+[Your detailed image prompt here]`;
+
+  const userPrompt = `Generate the structured image prompt now for the scene and style provided in your system instructions.`;
 
   try {
     const response = await fetch(GROQ_API_URL, {
@@ -308,6 +315,88 @@ function generateFallbackPrompt(sceneText: string, imageStyle: string, customSty
   return `${styleDesc}, scene depicting: ${sceneText}, no text or watermarks, 16:9 landscape format`;
 }
 
+/**
+ * Extract short B-Roll search keywords from scene text using Groq.
+ * Returns 2-4 word search terms optimized for stock video APIs (Pexels, Pixabay).
+ */
+export async function extractBrollKeywords(sceneText: string): Promise<string> {
+  const apiKey = await getResolvedApiKey("groq");
+
+  if (!apiKey) {
+    logWarning("Groq", "GROQ_API_KEY not configured, using fallback keywords");
+    return extractFallbackKeywords(sceneText);
+  }
+
+  const systemPrompt = `You are a stock video search keyword extractor. Given a scene description from a video script, extract the best 2-4 word search query for finding matching B-Roll footage on stock video sites like Pexels or Pixabay.
+
+RULES:
+- Output ONLY the search keywords, nothing else
+- Use 2-4 simple, concrete words
+- Focus on the main visual subject and action
+- Use words that stock video sites would tag their videos with
+- NO abstract concepts - use visually concrete terms
+- NO punctuation, quotes, or formatting
+
+EXAMPLES:
+- Scene about coffee origins → "coffee beans roasting"
+- Scene about ancient Rome → "roman colosseum ruins"  
+- Scene about ocean pollution → "ocean plastic pollution"
+- Scene about space exploration → "rocket launch space"
+- Scene about cooking dinner → "chef cooking kitchen"`;
+
+  const userPrompt = `Extract stock video search keywords from this scene:\n\n"${sceneText}"`;
+
+  try {
+    const response = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 30,
+      }),
+    });
+
+    if (!response.ok) {
+      logError("Groq", "B-Roll keyword extraction failed", undefined, { status: response.status });
+      return extractFallbackKeywords(sceneText);
+    }
+
+    const data = await response.json();
+    const keywords = data.choices?.[0]?.message?.content?.trim();
+
+    if (keywords) {
+      // Clean up: remove quotes, asterisks, and limit to 4 words
+      const cleaned = keywords.replace(/["""*#\n]/g, '').trim().split(/\s+/).slice(0, 4).join(' ');
+      logInfo("Groq", `B-Roll keywords: "${cleaned}"`, { scene: sceneText.slice(0, 60) });
+      return cleaned;
+    }
+
+    return extractFallbackKeywords(sceneText);
+  } catch (error) {
+    logError("Groq", "B-Roll keyword extraction error", error);
+    return extractFallbackKeywords(sceneText);
+  }
+}
+
+/**
+ * Fallback: extract keywords from scene text without AI.
+ * Picks the most meaningful nouns/words from the text.
+ */
+function extractFallbackKeywords(sceneText: string): string {
+  const stopWords = new Set(["the", "a", "an", "is", "was", "were", "are", "been", "be", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "shall", "can", "need", "dare", "ought", "used", "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into", "through", "during", "before", "after", "above", "below", "between", "out", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "just", "because", "but", "and", "or", "if", "while", "that", "this", "these", "those", "it", "its", "he", "she", "they", "them", "his", "her", "their", "our", "your", "my", "we", "you", "i", "me", "him", "us"]);
+
+  const words = sceneText.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+  return words.slice(0, 3).join(' ') || "nature landscape";
+}
+
 export { DEFAULT_HISTORICAL_STYLE };
 
 export async function generateScriptWithGroq(options: GroqScriptOptions): Promise<GroqGeneratedScript> {
@@ -339,7 +428,10 @@ Style: ${styleText}
 Return your response as JSON:
 {
   "script": "The full script with each sentence on its own line",
-  "scenes": ["Scene 1 paragraph", "Scene 2 paragraph", ...]
+  "scenes": [
+    { "text": "Scene 1 paragraph" },
+    { "text": "Scene 2 paragraph" }
+  ]
 }`;
 
   try {
@@ -374,21 +466,33 @@ Return your response as JSON:
       throw new Error("No content in Groq response");
     }
 
-    let parsed: { script?: string; scenes?: string[] };
+    let parsed: { script?: string; scenes?: (string | { text: string })[] };
     try {
       parsed = JSON.parse(content);
     } catch (parseError) {
       logError("Groq", "Failed to parse JSON response", undefined, { preview: content.slice(0, 200) });
       // Fallback: treat the entire response as the script
+      const fallbackScenes = content.split(/\n\n+/).filter((s: string) => s.trim());
       return {
         title: `Video about ${topic}`,
         script: content,
-        scenes: content.split(/\n\n+/).filter((s: string) => s.trim()),
+        scenes: fallbackScenes.map((t: string) => ({ text: t })),
       };
     }
 
-    const script = parsed.script || parsed.scenes?.join("\n\n") || "";
-    const scenes = parsed.scenes || script.split(/\n\n+/).filter((s: string) => s.trim()) || [];
+    // Normalize scenes to GroqSceneData[] (handle both string[] and object[] from AI)
+    const rawScenes = parsed.scenes || [];
+    const normalizedScenes: GroqSceneData[] = rawScenes.map(s => {
+      if (typeof s === "string") {
+        return { text: s };
+      }
+      return { text: s.text || "" };
+    });
+
+    const script = parsed.script || normalizedScenes.map(s => s.text).join("\n\n") || "";
+    const scenes = normalizedScenes.length > 0
+      ? normalizedScenes
+      : script.split(/\n\n+/).filter((s: string) => s.trim()).map((t: string) => ({ text: t }));
 
     return {
       title: `Video about ${topic}`,
@@ -400,6 +504,257 @@ Return your response as JSON:
     if (error.message?.includes("API key not configured")) {
       throw error;
     }
+    throw new Error("Failed to generate script with Groq");
+  }
+}
+
+// =============================================
+// Script Wizard — 4-step guided generation (Groq)
+// =============================================
+
+export async function groqJsonRequest(
+  systemPrompt: string,
+  userPrompt: string,
+  userId?: string,
+  maxTokens: number = 2000
+): Promise<any> {
+  const apiKey = await getResolvedApiKey("groq", userId);
+  if (!apiKey) {
+    throw new Error("Groq API key not configured. Please add it in Settings.");
+  }
+
+  const response = await fetch(GROQ_API_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-oss-120b",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: maxTokens,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    logError("Groq", "Wizard API error", undefined, { status: response.status, error: errorText.slice(0, 200) });
+    throw new Error("Groq API request failed");
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("No content in Groq response");
+  return JSON.parse(content);
+}
+
+async function groqTextRequest(systemPrompt: string, userPrompt: string, userId?: string, maxTokens = 2000): Promise<string> {
+  const apiKey = await getResolvedApiKey("groq", userId);
+  if (!apiKey) {
+    throw new Error("Groq API key not configured. Please add it in Settings.");
+  }
+
+  const response = await fetch(GROQ_API_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-oss-120b",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: maxTokens,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    logError("Groq", "Text API error", undefined, { status: response.status, error: errorText.slice(0, 200) });
+    throw new Error("Groq API request failed");
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("No content in Groq response");
+  return content;
+}
+
+/**
+ * Step 1: Generate 10 unusual/surprising angles for a topic (Groq).
+ */
+export async function wizardGenerateAnglesWithGroq(
+  topic: string,
+  userId?: string,
+): Promise<string[]> {
+  const systemPrompt = "You are a viral content strategist. Return ONLY valid JSON arrays.";
+  const userPrompt = `Hey, I've been thinking about this lately: "${topic}".
+Can you give me 10 unusual, surprising, or underexplored reasons why this happened / existed / became important?
+I'm looking for story angles that most people don't talk about.
+
+Return as JSON: { "angles": ["Reason 1 text", "Reason 2 text", ...] }`;
+
+  try {
+    const parsed = await groqJsonRequest(systemPrompt, userPrompt, userId);
+    const angles: string[] = (Array.isArray(parsed) ? parsed : parsed.angles || []).map(
+      (a: any) => typeof a === "string" ? a : a.angle || a.text || String(a)
+    );
+    return angles.slice(0, 10);
+  } catch (error: any) {
+    logError("Groq", "Wizard step 1 (angles) error", error);
+    if (error.message?.includes("API key not configured")) throw error;
+    throw new Error("Failed to generate angles with Groq");
+  }
+}
+
+/**
+ * Step 2: Generate 5 specific ideas from a selected angle (Groq).
+ */
+export async function wizardGenerateIdeasWithGroq(
+  topic: string,
+  angle: string,
+  userId?: string,
+): Promise<string[]> {
+  const systemPrompt = "You are a viral video concept developer. Return ONLY valid JSON.";
+  const userPrompt = `Topic: ${topic}
+I think reason number "${angle}" is really interesting.
+Can you break down that one reason into 5 short, specific ideas — events, turning points, contradictions, or facts — that are shocking, emotional, or visually powerful?
+Keep them tightly related to that reason.
+
+Return as JSON: { "ideas": ["Idea 1 text", "Idea 2 text", ...] }`;
+
+  try {
+    const parsed = await groqJsonRequest(systemPrompt, userPrompt, userId);
+    const ideas: string[] = (Array.isArray(parsed) ? parsed : parsed.ideas || []).map(
+      (i: any) => typeof i === "string" ? i : i.title || i.text || String(i)
+    );
+    return ideas.slice(0, 5);
+  } catch (error: any) {
+    logError("Groq", "Wizard step 2 (ideas) error", error);
+    if (error.message?.includes("API key not configured")) throw error;
+    throw new Error("Failed to generate ideas with Groq");
+  }
+}
+
+/**
+ * Step 3: Generate a single dramatic hook for a selected idea (Groq).
+ */
+export async function wizardGenerateHookWithGroq(
+  topic: string,
+  idea: string,
+  userId?: string,
+): Promise<string> {
+  const systemPrompt = "You are an expert hook writer for viral short-form videos. You create instant mystery and tension. Return ONLY the hook text, nothing else.";
+  const userPrompt = `I want you to help me create a short, dramatic hook for "${idea}" related to topic: ${topic}.
+Don't mention names, countries, or places directly. Use words like this man, this woman, this city, this village, etc.
+
+Here's the structure I want:
+
+Start with: "This [character type]" (e.g. "This girl," "This soldier")
+Add a short phrase describing where or when, in parentheses: (e.g. "(in a war-torn village)")
+Then, add one powerful trait or unique detail that makes them special
+Then, describe one key action they did
+Then, pause (add a line break or em dash)
+Finally, give a twist or consequence. A reversal. Something unexpected, ironic, tragic, or mysterious.
+
+Example Output:
+This girl (in medieval France) dressed like a soldier, claimed she spoke to God, and led an army — just to be betrayed by the king she fought for.
+
+IMPORTANT: Return ONLY the hook text. No explanations.`;
+
+  try {
+    const text = await groqTextRequest(systemPrompt, userPrompt, userId);
+    return text.trim();
+  } catch (error: any) {
+    logError("Groq", "Wizard step 3 (hook) error", error);
+    if (error.message?.includes("API key not configured")) throw error;
+    throw new Error("Failed to generate hook with Groq");
+  }
+}
+
+/**
+ * Step 4: Generate the full script from an approved hook and idea (Groq).
+ */
+export async function wizardGenerateFullScriptWithGroq(
+  topic: string,
+  idea: string,
+  hook: string,
+  userId?: string,
+): Promise<GroqGeneratedScript> {
+  const systemPrompt = VIRAL_SCRIPT_SYSTEM_PROMPT;
+  const userPrompt = `Write a dramatic short story in this exact format and pacing for the following topic "${idea}" (related to: ${topic}).
+Each sentence should be short and cinematic — like subtitles. No long paragraphs.
+
+The approved hook to use as the opening: "${hook}"
+
+Follow this 7-part structure exactly:
+
+CONTEXT (PART 1)
+Start with the date and place: "It's [year]. [City or country]."
+Introduce characters and setup in simple, factual lines
+Add a cultural or shocking historical norm
+
+SMALL TWIST (PART 2)
+Use a transitional line like "And for a while… it worked."
+Add a sentence or two showing early success or tension building
+
+PLOT TWIST (PART 3)
+Show what went wrong
+Add betrayal, ambition, or power struggle
+End with a dramatic shift (exile, downfall, turning point)
+
+CONTEXT (PART 4)
+Show how the main character responded
+Use short action sentences (e.g. "She camped outside the walls. Built an army.")
+Mention an important alliance if relevant
+
+SMALL TWIST (PART 5)
+Use a quiet tension line (e.g. "And one night… she snuck back in.")
+Do not overexplain — it's a stealth or setup move
+
+FINAL CONSEQUENCE (PART 6)
+Reveal the major event or fallout
+Keep it mysterious ("No one knows how." "But one thing was clear…")
+
+REVEAL (PART 7)
+Final punchline with identity:
+"And the [girl/man/place] who did it… was [name]."
+
+Tone should be visual, cold, and factual — like a narrated historical scene.
+No internal thoughts. No explanations. Just actions and outcomes. Do not include the Headers (like "CONTEXT (PART 1)"), just the script text.
+
+Return as JSON: { "script": "full script text with paragraphs separated by blank lines", "scenes": [{ "text": "paragraph" }] }`;
+
+  try {
+    const parsed = await groqJsonRequest(systemPrompt, userPrompt, userId, 8000);
+
+    const rawScenes = parsed.scenes || [];
+    const normalizedScenes: GroqSceneData[] = rawScenes.map((s: any) => {
+      if (typeof s === "string") return { text: s };
+      return { text: s.text || "" };
+    });
+
+    const script = parsed.script || normalizedScenes.map(s => s.text).join("\n\n") || "";
+    const scenes = normalizedScenes.length > 0
+      ? normalizedScenes
+      : script.split(/\n\n+/).filter((s: string) => s.trim()).map((t: string) => ({ text: t }));
+
+    return {
+      title: idea.split(/[.!?]/)[0] || "Untitled",
+      script,
+      scenes,
+    };
+  } catch (error: any) {
+    logError("Groq", "Wizard step 4 (full script) error", error);
+    if (error.message?.includes("API key not configured")) throw error;
     throw new Error("Failed to generate script with Groq");
   }
 }

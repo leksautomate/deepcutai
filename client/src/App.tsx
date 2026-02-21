@@ -23,6 +23,7 @@ const LogsDashboard = lazy(() => import("@/pages/logs-dashboard"));
 const LongTTS = lazy(() => import("@/pages/long-tts"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
+
 // Simple loading spinner
 function PageLoader() {
   return (
@@ -119,6 +120,7 @@ function AppRoutes() {
             <Route path="/dashboard" component={Dashboard} />
             <Route path="/settings" component={SettingsPage} />
             <Route path="/image-generator" component={ImageGenerator} />
+
             <Route path="/long-tts" component={LongTTS} />
             <Route path="/api-settings" component={ApiSettings} />
             <Route path="/logs" component={LogsDashboard} />
