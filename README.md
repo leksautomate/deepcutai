@@ -2,29 +2,59 @@
 
 [![GitHub](https://img.shields.io/badge/GitHub-leksautomate%2Fdeepcut--ai-blue)](https://github.com/leksautomate/deepcutai)
 
-AI-powered faceless video generation tool that automates the creation of YouTube-style videos. Users provide a topic, and the system generates scripts, voiceovers, images, and assembles everything into a final video.
-
-**GitHub Repository:** https://github.com/leksautomate/deepcutai
+AI-powered faceless video generation platform. Paste a topic, the AI wizard walks you through angles → ideas → hook → full cinematic script, then generates voiceover, images, and assembles everything into a final video with FFmpeg.
 
 ---
 
-## 🚀 One-Click Install (Ubuntu/Debian)
+## ⚡ One-Click VPS Deploy
 
-Copy and paste this single command:
+SSH into your Ubuntu/Debian VPS and run **one command**:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/leksautomate/deepcutai/main/install.sh | sudo bash
 ```
 
-That's it! The script automatically:
-- Installs Node.js 20, PostgreSQL, FFmpeg, PM2
-- Creates the database
-- Builds and starts the app on port 5000
+**Custom port** (default is 5000):
 
-After installation:
-1. Open `http://YOUR_SERVER_IP:5000`
-2. Create your admin account
-3. Add API keys in Settings
+```bash
+curl -fsSL https://raw.githubusercontent.com/leksautomate/deepcutai/main/install.sh | sudo bash -s -- --port 3000
+```
+
+That's it. The script handles everything automatically:
+
+| Step | What happens |
+|------|-------------|
+| 1 | Updates system packages |
+| 2 | Installs Node.js 20, FFmpeg, PostgreSQL, PM2 |
+| 3 | Creates DB user + database with a random password |
+| 4 | Clones the repo to `/var/www/deepcut-ai` |
+| 5 | Runs `npm install` + `npm run build` |
+| 6 | Pushes database schema (`npm run db:push`) |
+| 7 | Generates a secure session secret |
+| 8 | Starts the app with PM2 (auto-restarts on reboot) |
+| 9 | Opens firewall ports (SSH, 80, 443, your chosen port) |
+
+**After install:**
+
+```
+http://YOUR_SERVER_IP:5000
+```
+
+1. Create your admin account (first-visit setup page)
+2. Log in
+3. Go to **Settings → API Keys** and add your keys
+
+---
+
+## 🔄 One-Click Update
+
+SSH in and run:
+
+```bash
+cd /var/www/deepcut-ai && sudo ./update.sh
+```
+
+Pulls latest code, rebuilds, migrates DB, restarts PM2.
 
 ---
 
@@ -53,13 +83,16 @@ graph TB
 
 ## Features
 
-- **AI Script Generation** - Generate video scripts from any topic using Google Gemini or Groq
+- **AI Script Wizard** - 4-step guided flow: Topic → 10 Angles → 5 Ideas → 3 Hooks → Full Script (Gemini/Groq with automatic fallback)
+- **Typewriter Impact Text** - Dramatic keywords animate on-screen with a typewriter effect and typing sound (rendered via Remotion)
 - **Multi-Provider TTS** - Choose between Speechify (6 voices) or Inworld TTS (12 voices)
 - **Long Text-to-Speech** - Dedicated tool for generating audio from long-form text
 - **Multi-Provider Image Generation** - Seedream/Freepik, WaveSpeed, RunPod, Pollinations, or Whisk (Google IMAGEN 3.5)
+- **Visual Effects** - Film grain, fire flare, light sparkle, snow overlays with adjustable intensity
+- **Export Formats** - HD, Full HD, 4K, Vertical (9:16), and Square (1:1)
 - **Standalone Image Generator** - Generate images without creating a video project
 - **One-Time Registration** - Secure first-time setup without hardcoded credentials
-- **Video Rendering** - Automatic video assembly with FFmpeg
+- **Video Rendering** - Automatic video assembly with FFmpeg + Remotion
 - **Background Processing** - Generate videos in the background while you work
 - **Cascading Settings** - Global defaults with per-project overrides
 - **Premium UI/UX** - Glassmorphism design, mesh gradients, and smooth page transitions
@@ -68,14 +101,15 @@ graph TB
 - **Thumbnail Design** - AI-powered custom thumbnail generation
 - **Multiple Styles** - Cinematic, Anime, Realistic, Illustration, Custom, and Abstract
 - **Custom Voices** - Add your own voice IDs for any TTS provider
-- **Form Validation** - Smart inputs with script length guidance and numeric safeguards
+- **Caption Styles** - Classic, bold, neon, minimal, and more with configurable position
+- **Impact Text Control** - Choose how many scenes get dramatic on-screen text (0-10)
 
 ## Tech Stack
 
 - **Frontend**: React 18, TypeScript, TailwindCSS, shadcn/ui
 - **Backend**: Node.js, Express, TypeScript
 - **Database**: PostgreSQL with Drizzle ORM
-- **Video**: FFmpeg for rendering
+- **Video**: FFmpeg + Remotion (typewriter animations, caption overlays)
 - **AI Services**: Google Gemini, Groq, Speechify TTS, Inworld TTS, Freepik/Seedream, WaveSpeed, RunPod, Pollinations, Whisk (Google IMAGEN 3.5)
 
 ## VPS System Requirements

@@ -3,6 +3,7 @@
 # DeepCut AI - One-Click Installation Script
 # GitHub: https://github.com/leksautomate/deepcutai
 # Usage: curl -fsSL https://raw.githubusercontent.com/leksautomate/deepcutai/main/install.sh | sudo bash
+# Custom port: curl -fsSL https://raw.githubusercontent.com/leksautomate/deepcutai/main/install.sh | sudo bash -s -- --port 3000
 
 set -e
 
@@ -25,10 +26,32 @@ cleanup_on_error() {
 
 trap cleanup_on_error ERR
 
+# Parse command-line arguments
+APP_PORT=5000
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --port|-p)
+            APP_PORT="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Validate port
+if ! [[ "$APP_PORT" =~ ^[0-9]+$ ]] || [ "$APP_PORT" -lt 1 ] || [ "$APP_PORT" -gt 65535 ]; then
+    echo -e "${RED}[✗] Invalid port: $APP_PORT (must be 1-65535)${NC}"
+    exit 1
+fi
+
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║       DeepCut AI - One-Click Installer       ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "  Port: ${YELLOW}${APP_PORT}${NC}"
 echo ""
 
 if [ "$EUID" -ne 0 ]; then
@@ -99,7 +122,6 @@ npm install --silent > /dev/null 2>&1
 print_success "Dependencies installed"
 
 SESSION_SECRET=$(openssl rand -hex 32)
-APP_PORT=5000
 
 cat > .env << EOF
 NODE_ENV=production
