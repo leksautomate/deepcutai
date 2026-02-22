@@ -53,6 +53,7 @@ const generateAssetsSchema = z.object({
     sceneSettings: z.object({
         firstPageFrequency: z.number().min(5).max(120).optional(),
         restFrequency: z.number().min(5).max(240).optional(),
+        firstPageCharacterLimit: z.number().min(100).max(20000).optional(),
     }).optional(),
     scenes: z.array(z.object({
         narration: z.string(),
@@ -718,6 +719,7 @@ export class ProjectController extends BaseController {
                     ...getAppSettings().sceneSettings,
                     firstPageFrequency: sceneSettings.firstPageFrequency || getAppSettings().sceneSettings.firstPageFrequency,
                     restFrequency: sceneSettings.restFrequency || getAppSettings().sceneSettings.restFrequency,
+                    firstPageCharacterLimit: sceneSettings.firstPageCharacterLimit || getAppSettings().sceneSettings.firstPageCharacterLimit,
                 }
                 : getAppSettings().sceneSettings;
 

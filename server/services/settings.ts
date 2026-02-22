@@ -12,6 +12,7 @@ interface ImageStyleSettings {
 interface SceneSettings {
   firstPageFrequency: number;
   restFrequency: number;
+  firstPageCharacterLimit?: number;
 }
 
 interface TransitionSettings {
@@ -60,6 +61,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   sceneSettings: {
     firstPageFrequency: 5,
     restFrequency: 60,
+    firstPageCharacterLimit: 3000,
   },
   imageStyleSettings: {
     art_style: "Digital concept art mimicking romantic oil painting with soft, painterly brushstrokes.",
@@ -194,7 +196,7 @@ export function deleteCustomImageStyle(id: string): boolean {
 }
 
 export function splitScriptIntoScenes(script: string, settings?: SceneSettings): string[] {
-  const { firstPageFrequency, restFrequency } = settings || appSettings.sceneSettings;
+  const { firstPageFrequency, restFrequency, firstPageCharacterLimit } = settings || appSettings.sceneSettings;
   const sentences = script.split(/(?<=[.!?])\s+/).filter(s => s.trim());
   const scenes: string[] = [];
   let currentScene = "";
@@ -206,7 +208,7 @@ export function splitScriptIntoScenes(script: string, settings?: SceneSettings):
     // Calculate target words based on current character position
     // If under 3000 chars (approx 1 page), use firstPageFrequency, else use restFrequency
     // Assume 2.5 words per second
-    const targetFrequency = accumulatedCharacters < 3000 ? firstPageFrequency : restFrequency;
+    const targetFrequency = accumulatedCharacters < (firstPageCharacterLimit || 3000) ? firstPageFrequency : restFrequency;
     const targetWords = Math.max(10, Math.round(targetFrequency * 2.5)); // min 10 words to avoid tiny scenes
 
     // Fallback limit for exceptionally long scenes

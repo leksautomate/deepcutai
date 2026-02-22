@@ -24,6 +24,11 @@ interface ProjectState {
   pollinationsModel?: string;
   videoGenerator?: string;
   manifest?: VideoManifest;
+  sceneSettings?: {
+    firstPageFrequency: number;
+    restFrequency: number;
+    firstPageCharacterLimit: number;
+  };
   status: "draft" | "generating" | "ready" | "error";
   progress?: GenerationProgress;
 }
@@ -156,9 +161,11 @@ export function PipelineWizard() {
               onResolutionChange={(resolution) => updateProject({ resolution })}
               onImageGeneratorChange={(imageGenerator) => updateProject({ imageGenerator })}
               onPollinationsModelChange={(pollinationsModel) => updateProject({ pollinationsModel })}
+              onSceneSettingsChange={(sceneSettings) => updateProject({ sceneSettings })}
               onGenerateAssets={handleAssetsGenerated}
               script={project.script}
               projectId={project.id}
+              sceneSettings={project.sceneSettings}
             />
           )}
 
@@ -176,6 +183,7 @@ export function PipelineWizard() {
                 resolution: project.resolution,
                 imageGenerator: project.imageGenerator || "",
                 pollinationsModel: project.pollinationsModel || "",
+                sceneSettings: project.sceneSettings,
               }}
             />
           )}

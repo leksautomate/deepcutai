@@ -23,6 +23,11 @@ interface GenerationSettings {
   imageGenerator?: string;
   pollinationsModel?: string;
   ttsProvider?: string;
+  sceneSettings?: {
+    firstPageFrequency: number;
+    restFrequency: number;
+    firstPageCharacterLimit: number;
+  };
 }
 
 interface RenderPanelProps {
@@ -65,6 +70,7 @@ export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplet
         imageGenerator: generationSettings.imageGenerator || undefined,
         pollinationsModel: generationSettings.pollinationsModel || undefined,
         ttsProvider: generationSettings.ttsProvider || "inworld",
+        sceneSettings: generationSettings.sceneSettings,
       });
       return response.json();
     },

@@ -48,6 +48,8 @@ interface AssetConfigProps {
   onPollinationsModelChange?: (model: string) => void;
   onTtsProviderChange?: (provider: TTSProvider) => void;
   onCustomStyleChange?: (styleText: string) => void;
+  onSceneSettingsChange?: (settings: { firstPageFrequency: number; restFrequency: number; firstPageCharacterLimit: number; }) => void;
+  sceneSettings?: { firstPageFrequency: number; restFrequency: number; firstPageCharacterLimit: number; };
   onGenerateAssets: (projectId: string, manifest: VideoManifest) => void;
   script: string;
   projectId?: string;
@@ -68,6 +70,8 @@ export function AssetConfig({
   onPollinationsModelChange,
   onTtsProviderChange,
   onCustomStyleChange,
+  onSceneSettingsChange,
+  sceneSettings,
   onGenerateAssets: _onGenerateAssets,
   script,
   projectId: _projectId,
@@ -80,8 +84,9 @@ export function AssetConfig({
   const [selectedGenerator, setSelectedGenerator] = useState(imageGenerator || "wavespeed");
   const [selectedTtsProvider, setSelectedTtsProvider] = useState<TTSProvider>(ttsProvider);
   const [internalPollinationsModel, setInternalPollinationsModel] = useState(pollinationsModel || "flux");
-  const [firstPageFrequency, setFirstPageFrequency] = useState<number | undefined>(undefined);
-  const [restFrequency, setRestFrequency] = useState<number | undefined>(undefined);
+  const [firstPageFrequency, setFirstPageFrequency] = useState<number | undefined>(sceneSettings?.firstPageFrequency);
+  const [restFrequency, setRestFrequency] = useState<number | undefined>(sceneSettings?.restFrequency);
+  const [firstPageCharacterLimit, setFirstPageCharacterLimit] = useState<number | undefined>(sceneSettings?.firstPageCharacterLimit);
   const [selectedSavedStyle, setSelectedSavedStyle] = useState<string>("");
   const [newStyleName, setNewStyleName] = useState<string>("");
 
@@ -90,14 +95,16 @@ export function AssetConfig({
     sceneSettings: {
       firstPageFrequency: number;
       restFrequency: number;
+      firstPageCharacterLimit: number;
     };
   }>({
     queryKey: ["/api/settings"],
   });
 
   // Initialize scene settings from global settings when loaded
-  const effectiveFirstPageFrequency = firstPageFrequency ?? globalSettings?.sceneSettings?.firstPageFrequency ?? 5;
-  const effectiveRestFrequency = restFrequency ?? globalSettings?.sceneSettings?.restFrequency ?? 60;
+  const effectiveFirstPageFrequency = firstPageFrequency ?? sceneSettings?.firstPageFrequency ?? globalSettings?.sceneSettings?.firstPageFrequency ?? 5;
+  const effectiveRestFrequency = restFrequency ?? sceneSettings?.restFrequency ?? globalSettings?.sceneSettings?.restFrequency ?? 60;
+  const effectiveFirstPageCharacterLimit = firstPageCharacterLimit ?? sceneSettings?.firstPageCharacterLimit ?? globalSettings?.sceneSettings?.firstPageCharacterLimit ?? 3000;
 
   const { data: voicesData, isLoading: isLoadingVoices } = useQuery<VoicesResponse>({
     queryKey: ["/api/voices"],
@@ -578,9 +585,32 @@ export function AssetConfig({
           <CardDescription>Control how the script is split into scenes</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-3">
             <div>
-              <Label htmlFor="firstPageFrequency">First Page Frequency (sec)</Label>
+              <Label htmlFor="firstPageCharacterLimit">Intro Character Limit</Label>
+              <Input
+                id="firstPageCharacterLimit"
+                type="number"
+                min={100}
+                max={20000}
+                value={effectiveFirstPageCharacterLimit.toString()}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  if (!isNaN(val)) setFirstPageCharacterLimit(val);
+                  else if (e.target.value === "") setFirstPageCharacterLimit(0);
+                }}
+                onBlur={() => {
+                  const val = Math.max(100, Math.min(20000, effectiveFirstPageCharacterLimit || 3000));
+                  setFirstPageCharacterLimit(val);
+                  onSceneSettingsChange?.({ firstPageFrequency: effectiveFirstPageFrequency, restFrequency: effectiveRestFrequency, firstPageCharacterLimit: val });
+                }}
+                className="mt-1.5"
+                data-testid="input-first-page-character-limit"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Chars for intro frequency</p>
+            </div>
+            <div>
+              <Label htmlFor="firstPageFrequency">Intro Frequency (sec)</Label>
               <Input
                 id="firstPageFrequency"
                 type="number"
@@ -592,12 +622,16 @@ export function AssetConfig({
                   if (!isNaN(val)) setFirstPageFrequency(val);
                   else if (e.target.value === "") setFirstPageFrequency(0);
                 }}
-                onBlur={() => setFirstPageFrequency(Math.max(5, Math.min(120, effectiveFirstPageFrequency || 5)))}
+                onBlur={() => {
+                  const val = Math.max(5, Math.min(120, effectiveFirstPageFrequency || 5));
+                  setFirstPageFrequency(val);
+                  onSceneSettingsChange?.({ firstPageFrequency: val, restFrequency: effectiveRestFrequency, firstPageCharacterLimit: effectiveFirstPageCharacterLimit });
+                }}
                 className="mt-1.5"
 
                 data-testid="input-first-page-frequency"
               />
-              <p className="text-xs text-muted-foreground mt-1">First 3000 characters frequency</p>
+              <p className="text-xs text-muted-foreground mt-1">For first {effectiveFirstPageCharacterLimit} characters</p>
             </div>
             <div>
               <Label htmlFor="restFrequency">Rest Frequency (sec)</Label>
@@ -612,7 +646,11 @@ export function AssetConfig({
                   if (!isNaN(val)) setRestFrequency(val);
                   else if (e.target.value === "") setRestFrequency(0);
                 }}
-                onBlur={() => setRestFrequency(Math.max(5, Math.min(240, effectiveRestFrequency || 60)))}
+                onBlur={() => {
+                  const val = Math.max(5, Math.min(240, effectiveRestFrequency || 60));
+                  setRestFrequency(val);
+                  onSceneSettingsChange?.({ firstPageFrequency: effectiveFirstPageFrequency, restFrequency: val, firstPageCharacterLimit: effectiveFirstPageCharacterLimit });
+                }}
                 className="mt-1.5"
 
                 data-testid="input-rest-frequency"

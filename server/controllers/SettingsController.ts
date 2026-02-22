@@ -21,6 +21,7 @@ const settingsUpdateSchema = z.object({
     sceneSettings: z.object({
         firstPageFrequency: z.number().min(5).max(120),
         restFrequency: z.number().min(5).max(240),
+        firstPageCharacterLimit: z.number().min(100).max(20000).optional(),
     }).optional(),
     imageStyleSettings: z.object({
         art_style: z.string(),
