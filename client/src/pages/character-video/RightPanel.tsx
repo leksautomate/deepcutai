@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 export function RightPanel() {
     const { toast } = useToast();
@@ -21,6 +21,7 @@ export function RightPanel() {
     const [isStyleDialogOpen, setIsStyleDialogOpen] = useState(false);
     const [newStyleName, setNewStyleName] = useState("");
     const [newStyleDescription, setNewStyleDescription] = useState("");
+    const [isImageLoading, setIsImageLoading] = useState(false);
     const {
         inputMethod,
         setInputMethod,
@@ -109,25 +110,20 @@ export function RightPanel() {
         return imageStyles.find(s => s.id === imageStyle)?.description || "";
     }, [imageStyle, globalSettings, imageStyles]);
 
-    const { data: previewImageUrl, isLoading: isPreviewLoading } = useQuery({
-        queryKey: ["style-preview", activeStyleText],
-        queryFn: async () => {
-            if (!activeStyleText || activeStyleText === "Loading custom style...") return null;
-            // Add a base subject to ensure the prompt gives us a character portrait for the aesthetic test
-            const basePrompt = `A stunning character portrait. ${activeStyleText}`;
-            const url = `https://gen.pollinations.ai/image/${encodeURIComponent(basePrompt)}?model=zimage&width=800&height=450`;
-            const res = await fetch(url, {
-                headers: {
-                    "Authorization": "Bearer sk_vLEHEXDOgyIoI49UR02sFkWo7FPlhqaU"
-                }
-            });
-            if (!res.ok) throw new Error("Failed to load preview");
-            const blob = await res.blob();
-            return URL.createObjectURL(blob);
-        },
-        staleTime: 1000 * 60 * 60 * 24, // Cache for 24 hours to save API calls
-        enabled: !!activeStyleText
-    });
+    const previewImageUrl = useMemo(() => {
+        if (!activeStyleText || activeStyleText === "Loading custom style...") return null;
+        const basePrompt = `A stunning character portrait. ${activeStyleText}`;
+        return `https://gen.pollinations.ai/image/${encodeURIComponent(basePrompt)}?model=zimage&width=800&height=450&key=sk_vLEHEXDOgyIoI49UR02sFkWo7FPlhqaU`;
+    }, [activeStyleText]);
+
+    // Force loader when URL updates
+    useEffect(() => {
+        if (previewImageUrl) {
+            setIsImageLoading(true);
+        } else {
+            setIsImageLoading(false);
+        }
+    }, [previewImageUrl]);
 
     const createCustomStyleMutation = useMutation({
         mutationFn: async (data: { name: string, styleText: string }) => {
@@ -317,13 +313,20 @@ export function RightPanel() {
                                     <span className="font-semibold text-foreground">Style Preview</span>
                                 </div>
                                 <div className="w-full aspect-video bg-black/10 rounded-md mb-2 relative overflow-hidden flex items-center justify-center">
-                                    {isPreviewLoading ? (
-                                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                                    {isImageLoading && previewImageUrl && (
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-background/50 backdrop-blur-sm z-10 transition-opacity">
                                             <Loader2 className="w-5 h-5 animate-spin text-primary" />
                                             <span className="text-xs">Generating preview...</span>
                                         </div>
-                                    ) : previewImageUrl ? (
-                                        <img src={previewImageUrl} alt="Style Preview" className="w-full h-full object-cover transition-opacity duration-300" />
+                                    )}
+                                    {previewImageUrl ? (
+                                        <img
+                                            src={previewImageUrl}
+                                            alt="Style Preview"
+                                            className={`w-full h-full object-cover transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
+                                            onLoad={() => setIsImageLoading(false)}
+                                            onError={() => setIsImageLoading(false)}
+                                        />
                                     ) : (
                                         <span className="text-xs text-muted-foreground">No preview available</span>
                                     )}
