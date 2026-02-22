@@ -75,6 +75,7 @@ export const videoProjects = pgTable("video_projects", {
   imageStyle: text("image_style"),
   customStyleText: text("custom_style_text"),
   imageGenerator: text("image_generator").default("seedream"),
+  pollinationsModel: text("pollinations_model").default("flux"),
   videoGenerator: text("video_generator"),
   ttsProvider: text("tts_provider").default("inworld"),
   resolution: text("resolution").default("1080p"),
@@ -241,6 +242,8 @@ export const generateAssetsRequestSchema = z.object({
   voiceId: z.string(),
   imageStyle: z.string(),
   resolution: z.string().optional(),
+  imageGenerator: z.string().optional(),
+  pollinationsModel: z.string().optional(),
 });
 
 export type GenerateAssetsRequest = z.infer<typeof generateAssetsRequestSchema>;

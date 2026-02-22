@@ -21,6 +21,7 @@ interface ProjectState {
   customStyleText: string;
   resolution: string;
   imageGenerator?: string;
+  pollinationsModel?: string;
   videoGenerator?: string;
   manifest?: VideoManifest;
   status: "draft" | "generating" | "ready" | "error";
@@ -148,11 +149,13 @@ export function PipelineWizard() {
               customStyleText={project.customStyleText}
               resolution={project.resolution}
               imageGenerator={project.imageGenerator}
+              pollinationsModel={project.pollinationsModel}
               onVoiceChange={(voiceId) => updateProject({ voiceId })}
               onImageStyleChange={(imageStyle) => updateProject({ imageStyle })}
               onCustomStyleChange={(customStyleText) => updateProject({ customStyleText })}
               onResolutionChange={(resolution) => updateProject({ resolution })}
               onImageGeneratorChange={(imageGenerator) => updateProject({ imageGenerator })}
+              onPollinationsModelChange={(pollinationsModel) => updateProject({ pollinationsModel })}
               onGenerateAssets={handleAssetsGenerated}
               script={project.script}
               projectId={project.id}
@@ -172,6 +175,7 @@ export function PipelineWizard() {
                 customStyleText: project.customStyleText,
                 resolution: project.resolution,
                 imageGenerator: project.imageGenerator || "",
+                pollinationsModel: project.pollinationsModel || "",
               }}
             />
           )}

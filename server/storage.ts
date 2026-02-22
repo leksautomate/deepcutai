@@ -318,6 +318,7 @@ export class MemStorage implements IStorage {
       imageStyle: project.imageStyle ?? null,
       customStyleText: project.customStyleText ?? null,
       imageGenerator: project.imageGenerator ?? null,
+      pollinationsModel: project.pollinationsModel ?? null,
       videoGenerator: project.videoGenerator ?? null,
       ttsProvider: project.ttsProvider ?? null,
       resolution: project.resolution ?? null,

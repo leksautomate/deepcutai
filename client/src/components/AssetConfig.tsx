@@ -44,6 +44,8 @@ interface AssetConfigProps {
   onImageStyleChange: (imageStyle: string) => void;
   onResolutionChange: (resolution: string) => void;
   onImageGeneratorChange?: (generator: string) => void;
+  pollinationsModel?: string;
+  onPollinationsModelChange?: (model: string) => void;
   onTtsProviderChange?: (provider: TTSProvider) => void;
   onCustomStyleChange?: (styleText: string) => void;
   onGenerateAssets: (projectId: string, manifest: VideoManifest) => void;
@@ -58,10 +60,12 @@ export function AssetConfig({
   imageGenerator = "wavespeed",
   ttsProvider = "inworld",
   customStyleText = "",
+  pollinationsModel = "flux",
   onVoiceChange,
   onImageStyleChange,
   onResolutionChange,
   onImageGeneratorChange,
+  onPollinationsModelChange,
   onTtsProviderChange,
   onCustomStyleChange,
   onGenerateAssets: _onGenerateAssets,
@@ -73,9 +77,9 @@ export function AssetConfig({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [selectedGenerator, setSelectedGenerator] = useState(imageGenerator);
+  const [selectedGenerator, setSelectedGenerator] = useState(imageGenerator || "wavespeed");
   const [selectedTtsProvider, setSelectedTtsProvider] = useState<TTSProvider>(ttsProvider);
-  const [pollinationsModel, setPollinationsModel] = useState("flux");
+  const [internalPollinationsModel, setInternalPollinationsModel] = useState(pollinationsModel || "flux");
   const [firstPageFrequency, setFirstPageFrequency] = useState<number | undefined>(undefined);
   const [restFrequency, setRestFrequency] = useState<number | undefined>(undefined);
   const [selectedSavedStyle, setSelectedSavedStyle] = useState<string>("");
@@ -485,8 +489,11 @@ export function AssetConfig({
             <div>
               <Label htmlFor="pollinations-model">Pollinations Model</Label>
               <Select
-                value={pollinationsModel}
-                onValueChange={setPollinationsModel}
+                value={pollinationsModel || internalPollinationsModel}
+                onValueChange={(model) => {
+                  setInternalPollinationsModel(model);
+                  onPollinationsModelChange?.(model);
+                }}
               >
                 <SelectTrigger className="mt-1.5" data-testid="select-pollinations-model">
                   <SelectValue />

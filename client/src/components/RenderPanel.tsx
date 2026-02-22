@@ -21,6 +21,7 @@ interface GenerationSettings {
   customStyleText?: string;
   resolution: string;
   imageGenerator?: string;
+  pollinationsModel?: string;
   ttsProvider?: string;
 }
 
@@ -62,6 +63,7 @@ export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplet
         resolution: generationSettings.resolution,
         transition: "fade",
         imageGenerator: generationSettings.imageGenerator || undefined,
+        pollinationsModel: generationSettings.pollinationsModel || undefined,
         ttsProvider: generationSettings.ttsProvider || "inworld",
       });
       return response.json();

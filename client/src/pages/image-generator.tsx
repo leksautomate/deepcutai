@@ -42,12 +42,15 @@ export default function ImageGeneratorPage() {
     queryKey: ["/api/settings"],
   });
 
+  const [hasLoadedDefaults, setHasLoadedDefaults] = useState(false);
+
   useEffect(() => {
-    if (settings) {
+    if (settings && !hasLoadedDefaults) {
       if (settings.defaultImageGenerator) setGenerator(settings.defaultImageGenerator);
       if (settings.defaultPollinationsModel) setPollinationsModel(settings.defaultPollinationsModel);
+      setHasLoadedDefaults(true);
     }
-  }, [settings]);
+  }, [settings, hasLoadedDefaults]);
 
   const generateMutation = useMutation({
     mutationFn: async () => {
