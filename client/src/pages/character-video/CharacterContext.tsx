@@ -51,7 +51,7 @@ const CharacterVideoContext = createContext<CharacterVideoState | null>(null);
 export function CharacterVideoProvider({ children }: { children: ReactNode }) {
     const [characters, setCharacters] = useState<ReferenceAsset[]>([
         {
-            id: crypto.randomUUID(),
+            id: Math.random().toString(36).substring(2, 15),
             name: "Actor 1",
             category: "SUBJECT",
             promptText: "",
@@ -96,7 +96,7 @@ export function CharacterVideoProvider({ children }: { children: ReactNode }) {
                 // If empty, maintain the default Actor 1
                 setCharacters([
                     {
-                        id: crypto.randomUUID(),
+                        id: Math.random().toString(36).substring(2, 15),
                         name: "Actor 1",
                         category: "SUBJECT",
                         promptText: "",
@@ -108,7 +108,7 @@ export function CharacterVideoProvider({ children }: { children: ReactNode }) {
 
     const addCharacter = () => {
         const newChar: ReferenceAsset = {
-            id: crypto.randomUUID(),
+            id: Math.random().toString(36).substring(2, 15),
             name: `Actor ${characters.length + 1}`,
             category: "SUBJECT",
             promptText: "",
