@@ -54,7 +54,7 @@ export async function generateImageWithWaveSpeed(
     enable_base64_output: false,
     enable_sync_mode: false,
     output_format: "jpeg",
-    prompt: prompt,
+    prompt: prompt + ", no text, no watermark, no signature, clean composition",
     seed: seed === -1 ? Math.floor(Math.random() * 1000000) : seed,
     size: sizeStr,
   };
@@ -153,7 +153,7 @@ export async function generateImageWithPollinations(
   options?: Partial<PollinationsOptions>,
 ): Promise<PollinationsResult> {
   // Pollinations API supports models: flux, zimage, turbo, gptimage, gptimage-large, kontext, seedream, seedream-pro, nanobanana, nanobanana-pro
-  const encodedPrompt = encodeURIComponent(prompt);
+  const encodedPrompt = encodeURIComponent(prompt + ", no text, no watermark");
 
   // Build URL with query parameters matching the gen.pollinations.ai API format
   const params = new URLSearchParams();
@@ -170,7 +170,7 @@ export async function generateImageWithPollinations(
   params.set("enhance", options?.enhance === true ? "true" : "false");
 
   // Default negative prompt for better quality images
-  const defaultNegativePrompt = "worst quality, blurry";
+  const defaultNegativePrompt = "text, words, watermark, signature, speech bubble, worst quality, blurry";
   params.set("negative_prompt", options?.negativePrompt || defaultNegativePrompt);
 
   // Safe mode is configurable - defaults to false for creative freedom
@@ -289,7 +289,7 @@ export async function generateImageWithRunPod(
 
   const payload = {
     input: {
-      prompt: prompt,
+      prompt: prompt + ", no text, no watermark, no signature, clean composition",
       seed: seed === -1 ? Math.floor(Math.random() * 1000000) : seed,
       guidance: 3.5,
       width: finalWidth,
@@ -440,7 +440,7 @@ export async function generateImageWithWhisk(
       }
 
       try {
-        let finalPrompt = prompt;
+        let finalPrompt = prompt + ", NO TEXT, NO WATERMARK, NO SIGNATURE, clear image";
         let media;
 
         try {

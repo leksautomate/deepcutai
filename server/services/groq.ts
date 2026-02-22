@@ -97,6 +97,7 @@ BAD HOOK (REVEALS TOO MUCH):
 ❌ Meta-commentary ("In this video," "Let me tell you")
 ❌ Questions to the audience
 ❌ Real names of celebrities, politicians, or public figures in the visual descriptions (anonymize them into generic physical descriptions instead)
+❌ Any text, words, labels, lettering, signatures, or watermarks in the visual descriptions. The images must be completely textless.
 
 # OUTPUT FORMAT
 
@@ -397,19 +398,17 @@ IMAGE PROMPT REQUIREMENTS (MANDATORY):
 ${styleConstraint}
 
 Character Identity (STRICT):
-• The Image Prompt MUST explicitly mention the character's name and visual description at the beginning of EVERY image prompt.
-• Example format: "Full-body illustration of [actor name], [actor description] standing..."
-• The same styling must be used consistently across all image prompts.
+• The Image Prompt MUST explicitly mention the character's visual description at the beginning of EVERY image prompt.
+• Example format: "Full-body illustration of [exact character description] standing..."
+• VERY IMPORTANT: The exact same physical appearance, hair, face, and clothing MUST be described verbatim in every single prompt to force the AI image generator to maintain perfect character consistency across all scenes.
 
 Character clothing (keep identical every time):
-• Plain T-shirt or hoodie
-• Simple jeans or trousers
-• Basic sneakers
-• No logos, no patterns
+• Describe the exact same clothing for the character in every scene.
+• No logos, no patterns, NO text on clothing.
 
 Props (ONLY when relevant to the script line):
 • Props must match the visual art style requested
-• NO text of any kind inside the image
+• CRITICAL: NO text of any kind inside the image. Do not include signs, labels, speech bubbles, words, signatures, or watermarks. The image MUST be 100% text-free.
 • Clean, uncluttered composition
 • Clearly describe pose, facial expression, body language, props, and explicitly confirm full-body framing
 `;
