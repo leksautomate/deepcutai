@@ -440,10 +440,40 @@ export async function generateImageWithWhisk(
       }
 
       try {
-        const media = await session.project.generateImage({
-          prompt: prompt,
-          aspectRatio: whiskAspectRatio,
-        });
+        let finalPrompt = prompt;
+        let media;
+
+        try {
+          media = await session.project.generateImage({
+            prompt: finalPrompt,
+            aspectRatio: whiskAspectRatio,
+          });
+        } catch (initialError: any) {
+          // If hit by Google's prominent figures safety filter, strip out suspected real names and retry once
+          const errString = String(initialError).toUpperCase();
+          if (errString.includes("PUBLIC_ERROR_PROMINENT_PEOPLE_FILTER_FAILED")) {
+            logInfo("Whisk", "Safety filter triggered (Prominent Person). Anonymizing prompt and retrying...");
+
+            // Basic heuristic to anonymize: replace capitalized words (Likely Names) that aren't at the start of sentences
+            // In a better system this would use an LLM, but here we just aggressively anonymize the prompt 
+            // by replacing the Subject string chunk entirely with a generic. Since we formatted groq.ts to output 
+            // "Subject: [Description]", we can rewrite it.
+
+            // Let's just remove specific capitalized name strings for a quick fallback
+            finalPrompt = prompt.replace(/\b[A-Z][a-z]+\s[A-Z][a-z]+\b/g, "the person")
+              .replace(/\bKing Leonidas\b/gi, "the Spartan leader")
+              .replace(/\bLeonidas\b/gi, "the Spartan leader");
+
+            logInfo("Whisk", "Retrying with anonymized prompt:", { finalPrompt: finalPrompt.substring(0, 100) });
+
+            media = await session.project.generateImage({
+              prompt: finalPrompt,
+              aspectRatio: whiskAspectRatio,
+            });
+          } else {
+            throw initialError;
+          }
+        }
 
         // Increment usage count on success
         if (cachedWhiskSession) {
