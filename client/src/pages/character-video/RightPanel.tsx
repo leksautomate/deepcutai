@@ -39,6 +39,8 @@ export function RightPanel() {
         setImageStyle,
         resolution,
         setResolution,
+        pollinationsModel,
+        setPollinationsModel,
         characters,
         setGeneratedScript,
         setGeneratedScenes,
@@ -55,6 +57,7 @@ export function RightPanel() {
                 transition: "fade",
                 ttsProvider: ttsProvider,
                 imageGenerator: imageGenerator,
+                pollinationsModel: pollinationsModel,
                 scenes: data.scenes,
                 customCharacters: characters.map(c => ({ id: c.id, name: c.name, category: c.category, promptText: c.promptText })),
             });
@@ -299,6 +302,27 @@ export function RightPanel() {
                                 Choose the AI engine for the visual elements of your character scenes. Whisk allows conversational persistence, WaveSpeed is fastest.
                             </p>
                         </div>
+
+                        {imageGenerator === "pollinations" && (
+                            <div className="grid gap-2 mt-2">
+                                <Label>Pollinations Model</Label>
+                                <Select value={pollinationsModel} onValueChange={setPollinationsModel}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Pollinations model" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="flux">Flux (Default - High Quality)</SelectItem>
+                                        <SelectItem value="zimage">ZImage (Fastest)</SelectItem>
+                                        <SelectItem value="turbo">Turbo</SelectItem>
+                                        <SelectItem value="gptimage">GPT Image</SelectItem>
+                                        <SelectItem value="gptimage-large">GPT Image (Large)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Select the specific generation model within the Pollinations network.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="grid gap-2">
                             <Label>Resolution & Format</Label>

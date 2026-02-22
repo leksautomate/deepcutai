@@ -32,6 +32,8 @@ export interface CharacterVideoState {
     setImageStyle: (style: string) => void;
     resolution: string;
     setResolution: (res: string) => void;
+    pollinationsModel: string;
+    setPollinationsModel: (model: string) => void;
     syncToBackend?: () => void;
 
     // Generation Results
@@ -66,6 +68,7 @@ export function CharacterVideoProvider({ children }: { children: ReactNode }) {
     const [imageGenerator, setImageGenerator] = useState("wavespeed");
     const [imageStyle, setImageStyle] = useState("doodle");
     const [resolution, setResolution] = useState("vertical");
+    const [pollinationsModel, setPollinationsModel] = useState("zimage");
 
     const [generatedScript, setGeneratedScript] = useState<string | null>(null);
     const [generatedScenes, setGeneratedScenes] = useState<any[] | null>(null);
@@ -166,6 +169,8 @@ export function CharacterVideoProvider({ children }: { children: ReactNode }) {
             setImageStyle,
             resolution,
             setResolution,
+            pollinationsModel,
+            setPollinationsModel,
             syncToBackend,
             generatedScript,
             setGeneratedScript,
