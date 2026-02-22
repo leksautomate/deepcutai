@@ -90,7 +90,7 @@ async function processScriptProject(project: ScriptQueuedProject) {
 
     const generatedScenes: Scene[] = [];
     const totalScenes = scenes.length;
-    const imageGenerator = project.imageGenerator || "wavespeed";
+    const imageGenerator = project.imageGenerator || settings.defaultImageGenerator || "wavespeed";
     const lockedSeed = Math.floor(Math.random() * 1000000);
 
     for (let i = 0; i < scenes.length; i++) {
@@ -156,7 +156,7 @@ async function processScriptProject(project: ScriptQueuedProject) {
         const { generateImageWithPollinations } = await import("./image-generators");
         try {
           const apiKey = await getResolvedApiKey("pollinations");
-          const pollinationsModel = project.pollinationsModel || "flux";
+          const pollinationsModel = project.pollinationsModel || settings.defaultPollinationsModel || "flux";
 
           const result = await generateImageWithPollinations(
             imagePrompt,
@@ -433,14 +433,14 @@ async function processProject(project: QueuedProject) {
 
       const imagePath = path.join(projectDir, `${sceneId}.png`);
       let imageResult: { success: boolean; error?: string };
-      const imageGenerator = project.imageGenerator || "wavespeed";
+      const imageGenerator = project.imageGenerator || settings.defaultImageGenerator || "wavespeed";
 
       // Use selected image generator with proper dimensions
       if (imageGenerator === "pollinations") {
         const { generateImageWithPollinations } = await import("./image-generators");
         try {
           const apiKey = await getResolvedApiKey("pollinations");
-          const pollinationsModel = project.pollinationsModel || "flux";
+          const pollinationsModel = project.pollinationsModel || settings.defaultPollinationsModel || "flux";
 
           const result = await generateImageWithPollinations(
             imagePrompt,

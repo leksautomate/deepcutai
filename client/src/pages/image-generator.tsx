@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -37,6 +37,17 @@ export default function ImageGeneratorPage() {
   const { data: apiStatus } = useQuery({
     queryKey: ["/api/settings/status"],
   });
+
+  const { data: settings } = useQuery<any>({
+    queryKey: ["/api/settings"],
+  });
+
+  useEffect(() => {
+    if (settings) {
+      if (settings.defaultImageGenerator) setGenerator(settings.defaultImageGenerator);
+      if (settings.defaultPollinationsModel) setPollinationsModel(settings.defaultPollinationsModel);
+    }
+  }, [settings]);
 
   const generateMutation = useMutation({
     mutationFn: async () => {

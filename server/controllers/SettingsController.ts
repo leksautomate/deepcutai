@@ -33,6 +33,8 @@ const settingsUpdateSchema = z.object({
         transitionDuration: z.number().min(0.1).max(2),
     }).optional(),
     scriptProvider: z.enum(["gemini", "groq"]).optional(),
+    defaultImageGenerator: z.string().optional(),
+    defaultPollinationsModel: z.string().optional(),
 });
 
 export class SettingsController extends BaseController {
@@ -58,6 +60,8 @@ export class SettingsController extends BaseController {
                 imageStyleSettings: body.imageStyleSettings,
                 transitionSettings: body.transitionSettings,
                 scriptProvider: body.scriptProvider,
+                defaultImageGenerator: body.defaultImageGenerator,
+                defaultPollinationsModel: body.defaultPollinationsModel,
             });
             return res.json(getAppSettings());
         } catch (error) {

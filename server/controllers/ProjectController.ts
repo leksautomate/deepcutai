@@ -127,7 +127,10 @@ export class ProjectController extends BaseController {
     }
 
     public async runBackgroundGeneration(projectId: string, body: any, userId: string, startFromScene: number = 0) {
-        const { script, voiceId, imageStyle, customStyleText, resolution, motionEffect, imageGenerator, pollinationsModel, ttsProvider, sceneSettings } = body;
+        let { script, voiceId, imageStyle, customStyleText, resolution, motionEffect, imageGenerator, pollinationsModel, ttsProvider, sceneSettings } = body;
+
+        imageGenerator = imageGenerator || getAppSettings().defaultImageGenerator || "wavespeed";
+        pollinationsModel = pollinationsModel || getAppSettings().defaultPollinationsModel || "flux";
 
         // Log configuration
         logInfo("BG_GEN", startFromScene > 0 ? `Resuming generation from scene ${startFromScene + 1}` : "Starting background generation", {
@@ -699,11 +702,13 @@ export class ProjectController extends BaseController {
                 customStyleText,
                 resolution,
                 motionEffect,
-                imageGenerator = "wavespeed",
-                pollinationsModel = "flux",
                 ttsProvider = "inworld",
                 sceneSettings
             } = validation;
+
+            let { imageGenerator, pollinationsModel } = validation;
+            imageGenerator = (imageGenerator || getAppSettings().defaultImageGenerator || "wavespeed") as typeof imageGenerator;
+            pollinationsModel = (pollinationsModel || getAppSettings().defaultPollinationsModel || "flux") as typeof pollinationsModel;
 
             // Generate project title from topic, title field, or first words of script
             const projectTitle = topic || title || generateTitleFromScript(script) || `Video ${randomUUID().slice(0, 8)}`;

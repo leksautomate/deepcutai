@@ -46,6 +46,8 @@ interface AppSettings {
   imageStyleSettings: ImageStyleSettings;
   transitionSettings: TransitionSettings;
   scriptProvider: ScriptProvider;
+  defaultImageGenerator?: string;
+  defaultPollinationsModel?: string;
 }
 
 const defaultSettings: AppSettings = {
@@ -65,6 +67,8 @@ const defaultSettings: AppSettings = {
     transitionDuration: 0.5,
   },
   scriptProvider: "gemini",
+  defaultImageGenerator: "wavespeed",
+  defaultPollinationsModel: "flux",
 };
 
 // Danger Zone Component
@@ -581,6 +585,58 @@ export default function SettingsPage() {
                       </Badge>
                     </div>
                   </div>
+
+                  <Separator className="my-4" />
+
+                  <div>
+                    <h4 className="font-medium mb-2">Default Image Generator</h4>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Choose which AI image generator to use across standard videos and the Image Generator tab.
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <Select
+                        value={settings.defaultImageGenerator || "wavespeed"}
+                        onValueChange={(v) => setSettings(prev => ({ ...prev, defaultImageGenerator: v }))}
+                      >
+                        <SelectTrigger className="w-[250px]">
+                          <SelectValue placeholder="Select image generator" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="wavespeed">WaveSpeed (Default - Fast)</SelectItem>
+                          <SelectItem value="whisk">Google Whisk (Imagen 3.5)</SelectItem>
+                          <SelectItem value="runpod">RunPod (Custom Models)</SelectItem>
+                          <SelectItem value="pollinations">Pollinations.ai (Free)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {(settings.defaultImageGenerator === "pollinations" || !settings.defaultImageGenerator) && (
+                    <div className="mt-4">
+                      <h4 className="font-medium mb-2">Default Pollinations Model</h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Choose the specific generation model within the Pollinations network.
+                      </p>
+                      <div className="flex items-center gap-4">
+                        <Select
+                          value={settings.defaultPollinationsModel || "flux"}
+                          onValueChange={(v) => setSettings(prev => ({ ...prev, defaultPollinationsModel: v }))}
+                        >
+                          <SelectTrigger className="w-[250px]">
+                            <SelectValue placeholder="Select pollinations model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="flux">Flux (Default - High Quality)</SelectItem>
+                            <SelectItem value="zimage">ZImage (Fastest)</SelectItem>
+                            <SelectItem value="turbo">Turbo</SelectItem>
+                            <SelectItem value="gptimage">GPT Image</SelectItem>
+                            <SelectItem value="gptimage-large">GPT Image (Large)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
 
                 <Separator className="my-4" />

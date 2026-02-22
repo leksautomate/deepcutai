@@ -44,6 +44,8 @@ export interface AppSettings {
   imageStyleSettings: ImageStyleSettings;
   transitionSettings: TransitionSettings;
   scriptProvider: ScriptProvider;
+  defaultImageGenerator: string;
+  defaultPollinationsModel: string;
 }
 
 const SETTINGS_FILE = path.join(process.cwd(), "data", "settings.json");
@@ -70,6 +72,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     transitionDuration: 0.5,
   },
   scriptProvider: "gemini",
+  defaultImageGenerator: "wavespeed",
+  defaultPollinationsModel: "flux",
 };
 
 function loadSettings(): AppSettings {
@@ -87,6 +91,8 @@ function loadSettings(): AppSettings {
         customVoices: saved.customVoices || DEFAULT_SETTINGS.customVoices,
         customImageStyles: saved.customImageStyles || DEFAULT_SETTINGS.customImageStyles,
         customCharacters: saved.customCharacters || DEFAULT_SETTINGS.customCharacters,
+        defaultImageGenerator: saved.defaultImageGenerator || DEFAULT_SETTINGS.defaultImageGenerator,
+        defaultPollinationsModel: saved.defaultPollinationsModel || DEFAULT_SETTINGS.defaultPollinationsModel,
       };
     }
   } catch (err) {
