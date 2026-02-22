@@ -42,6 +42,7 @@ interface AppSettings {
   sceneSettings: {
     firstPageFrequency: number;
     restFrequency: number;
+    firstPageCharacterLimit: number;
   };
   imageStyleSettings: ImageStyleSettings;
   transitionSettings: TransitionSettings;
@@ -55,6 +56,7 @@ const defaultSettings: AppSettings = {
   sceneSettings: {
     firstPageFrequency: 5,
     restFrequency: 60,
+    firstPageCharacterLimit: 3000,
   },
   imageStyleSettings: {
     art_style: "Digital concept art mimicking romantic oil painting with soft, painterly brushstrokes.",
@@ -938,9 +940,28 @@ export default function SettingsPage() {
                   </p>
                 </div>
 
-                <div className="grid gap-6 sm:grid-cols-2">
+                <div className="grid gap-6 sm:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="firstPageFrequency">First Page Frequency (seconds)</Label>
+                    <Label htmlFor="firstPageCharacterLimit">Intro Character Limit</Label>
+                    <Input
+                      id="firstPageCharacterLimit"
+                      type="number"
+                      min={100}
+                      max={20000}
+                      value={settings.sceneSettings.firstPageCharacterLimit}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          sceneSettings: { ...prev.sceneSettings, firstPageCharacterLimit: parseInt(e.target.value) || 3000 },
+                        }))
+                      }
+                      data-testid="input-first-page-character-limit"
+                    />
+                    <p className="text-xs text-muted-foreground">Char length to run Intro Frequency</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="firstPageFrequency">Intro Frequency (seconds)</Label>
                     <Input
                       id="firstPageFrequency"
                       type="number"
@@ -955,7 +976,7 @@ export default function SettingsPage() {
                       }
                       data-testid="input-first-page-frequency"
                     />
-                    <p className="text-xs text-muted-foreground">How often (in seconds) to show images for the first 3000 chars</p>
+                    <p className="text-xs text-muted-foreground">Every {settings.sceneSettings.firstPageFrequency}s for first {settings.sceneSettings.firstPageCharacterLimit} chars</p>
                   </div>
 
                   <div className="space-y-2">
@@ -974,7 +995,7 @@ export default function SettingsPage() {
                       }
                       data-testid="input-rest-frequency"
                     />
-                    <p className="text-xs text-muted-foreground">How often (in seconds) to show images for the rest of the video</p>
+                    <p className="text-xs text-muted-foreground">Every {settings.sceneSettings.restFrequency}s for rest of video</p>
                   </div>
 
                 </div>
@@ -982,7 +1003,7 @@ export default function SettingsPage() {
                 <div className="p-4 rounded-lg bg-muted/50">
                   <p className="text-sm font-medium mb-2">Scene Generation Rules</p>
                   <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>First Page: 1 image every ~{settings.sceneSettings.firstPageFrequency} seconds</li>
+                    <li>Intro Region: 1 image every ~{settings.sceneSettings.firstPageFrequency} seconds</li>
                     <li>Rest of Video: 1 image every ~{settings.sceneSettings.restFrequency} seconds</li>
                   </ul>
                 </div>
