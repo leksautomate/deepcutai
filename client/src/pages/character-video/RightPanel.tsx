@@ -98,7 +98,7 @@ export function RightPanel() {
         }
     });
 
-    const { data: globalSettings, refetch: refetchSettings } = useQuery<{ customImageStyles: any[] }>({
+    const { data: globalSettings, refetch: refetchSettings } = useQuery<{ customImageStyles: any[], customVoices: any[] }>({
         queryKey: ["/api/settings"],
     });
 
@@ -255,7 +255,20 @@ export function RightPanel() {
                                     <SelectContent>
                                         {ttsProvider === "inworld"
                                             ? inworldVoiceOptions.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)
-                                            : voiceOptions.map(v => <SelectItem key={v.id} value={v.id}>{v.name} ({v.accent})</SelectItem>)
+                                            : <>
+                                                {globalSettings?.customVoices && globalSettings.customVoices.length > 0 && (
+                                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                        Custom Voices
+                                                    </div>
+                                                )}
+                                                {globalSettings?.customVoices?.map((v) => (
+                                                    <SelectItem key={v.id} value={v.voiceId || v.id}>{v.name} (Custom)</SelectItem>
+                                                ))}
+                                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-1">
+                                                    Standard Voices
+                                                </div>
+                                                {voiceOptions.map(v => <SelectItem key={v.id} value={v.id}>{v.name} ({v.accent})</SelectItem>)}
+                                            </>
                                         }
                                     </SelectContent>
                                 </Select>
