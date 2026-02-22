@@ -12,15 +12,21 @@ async function getGeminiClient(userId?: string): Promise<GoogleGenAI> {
   return new GoogleGenAI({ apiKey });
 }
 
+import type { ReferenceAsset } from "@shared/schema";
+
 export interface GenerateScriptOptions {
   topic: string;
   style?: "educational" | "entertaining" | "documentary" | "storytelling";
   duration?: "30s" | "1min" | "2min" | "10min";
   userId?: string;
+  customCharacters?: ReferenceAsset[];
+  scenePacing?: "auto" | "sentence" | "manual";
+  customScript?: boolean; // If true, the `topic` acts as the exact text
 }
 
 export interface SceneData {
-  text: string;
+  narration: string;
+  visual: string;
 }
 
 export interface GeneratedScript {
@@ -96,19 +102,16 @@ BAD HOOK (REVEALS TOO MUCH):
 
 Return ONLY valid JSON with this exact structure:
 {
-<<<<<<< HEAD
-  "script": "Full script all together in one script",
-  "scenes": ["Paragraph 1 text", "Paragraph 2 text", ...]
-=======
   "script": "Full script with one sentence per line, paragraphs separated by blank lines",
   "scenes": [
-    { "text": "Paragraph 1 text" },
-    { "text": "Paragraph 2 text" }
+    { 
+      "narration": "Paragraph 1 text to be spoken",
+      "visual": "Detailed visual description of Paragraph 1"
+    }
   ]
->>>>>>> 6026e71 (feat: complete b-roll removal, voice clone fix, chained animations, and new logo)
 }
 
-CRITICAL: Each paragraph in "script" becomes one visual scene. Aim for 4-8 scene paragraphs depending on duration.`;
+CRITICAL: Each paragraph in "script" becomes one scene. Aim for 4-8 scenes depending on duration.`;
 
 function getDurationGuide(duration: string): string {
   switch (duration) {
@@ -161,11 +164,61 @@ function getDurationGuide(duration: string): string {
 export async function generateScript(
   options: GenerateScriptOptions,
 ): Promise<GeneratedScript> {
-  const { topic, style = "documentary", duration = "1min", userId } = options;
+  const { topic, style = "documentary", duration = "1min", userId, customCharacters, scenePacing, customScript } = options;
 
-  const durationGuide = getDurationGuide(duration);
+  let prompt = "";
 
-  const prompt = `${VIRAL_SCRIPT_PROMPT}
+  // Handle Character Injections
+  let castInstructions = "";
+  if (customCharacters && customCharacters.length > 0) {
+    const castDescriptions = customCharacters.map(c => `[${c.name}]: ${c.promptText}`).join("\n");
+    castInstructions = `
+# CAST REQUIREMENTS (CRITICAL)
+The following characters are starring in this video:
+${castDescriptions}
+
+You MUST explicitly append the precise visual descriptions of the actors to the end of EVERY scene's image prompt logic. If an actor appears in a scene, their visual description must be in that scene.
+`;
+  }
+
+  if (customScript) {
+    // Custom Script Flow
+    let pacingInstructions = "";
+    if (scenePacing === "sentence") {
+      pacingInstructions = "Break the script into visual scenes sentence-by-sentence. Every single sentence must be its own scene.";
+    } else if (scenePacing === "manual") {
+      pacingInstructions = "Break the script into visual scenes strictly based on the user's [SCENE] markers in the text.";
+    } else {
+      pacingInstructions = "Break the script into logical visual scenes that last approximately 5-7 seconds of speaking time each.";
+    }
+
+    prompt = `You are a video script processor.
+    
+Your single job is to take the EXACT provided user script and format it into our required JSON structure for video generation.
+
+${castInstructions}
+
+# PACING RULES
+${pacingInstructions}
+
+# THE SCRIPT TO PROCESS
+"${topic}"
+
+Return your response as ONLY valid JSON:
+{
+  "script": "The exact script provided above, without changes to the words.",
+  "scenes": [
+    { 
+       "narration": "The exact dialogue for this scene",
+       "visual": "Detailed visual description of what is visible in the scene"
+    }
+  ]
+}`;
+  } else {
+    // Standard AI Generation Flow
+    const durationGuide = getDurationGuide(duration);
+
+    prompt = `${VIRAL_SCRIPT_PROMPT}
 
 ## YOUR TASK
 
@@ -175,16 +228,21 @@ Duration: ${durationGuide}
 
 Style: ${style === "documentary" ? "Cold, factual documentary narrator" : style === "storytelling" ? "Narrative and immersive" : style === "entertaining" ? "Engaging with energy" : "Informative and clear"}
 
-**REMEMBER: Output ONLY the script. No titles, no labels, no explanations. Just the clean script text with one sentence per line.**
+${castInstructions}
+
+**REMEMBER: Output ONLY the script text and scenes. No titles, no labels, no explanations.**
 
 Return your response as JSON:
 {
   "script": "The full script with each sentence on its own line",
   "scenes": [
-    { "text": "Scene 1 paragraph" },
-    { "text": "Scene 2 paragraph" }
+    { 
+       "narration": "The exact dialogue for this scene",
+       "visual": "Detailed visual description of what is visible in the scene"
+    }
   ]
 }`;
+  }
 
   try {
     const ai = await getGeminiClient(userId);
@@ -210,7 +268,7 @@ Return your response as JSON:
       return {
         title: `Video about ${topic}`,
         script: text,
-        scenes: fallbackScenes.map(t => ({ text: t })),
+        scenes: fallbackScenes.map(t => ({ narration: t, visual: t })),
       };
     }
 
@@ -218,15 +276,15 @@ Return your response as JSON:
     const rawScenes = parsed.scenes || [];
     const normalizedScenes: SceneData[] = rawScenes.map(s => {
       if (typeof s === "string") {
-        return { text: s };
+        return { narration: s, visual: s };
       }
-      return { text: s.text || "" };
+      return { narration: (s as any).narration || (s as any).text || "", visual: (s as any).visual || (s as any).text || "" };
     });
 
-    const script = parsed.script || normalizedScenes.map(s => s.text).join("\n\n") || "";
+    const script = parsed.script || normalizedScenes.map(s => s.narration).join("\n\n") || "";
     const scenes = normalizedScenes.length > 0
       ? normalizedScenes
-      : script.split(/\n\n+/).filter((s: string) => s.trim()).map(t => ({ text: t }));
+      : script.split(/\n\n+/).filter((s: string) => s.trim()).map(t => ({ narration: t, visual: t }));
 
     return {
       title: `Video about ${topic}`,
@@ -501,7 +559,7 @@ Final punchline with identity:
 Tone should be visual, cold, and factual — like a narrated historical scene.
 No internal thoughts. No explanations. Just actions and outcomes. Do not include the Headers (like "CONTEXT (PART 1)"), just the script text.
 
-Return ONLY valid JSON: { "script": "full script text with paragraphs separated by blank lines", "scenes": [{ "text": "paragraph" }] }`;
+Return ONLY valid JSON: { "script": "full script text with paragraphs separated by blank lines", "scenes": [{ "narration": "dialogue", "visual": "visuals" }] }`;
 
   try {
     const ai = await getGeminiClient(userId);
@@ -520,20 +578,20 @@ Return ONLY valid JSON: { "script": "full script text with paragraphs separated 
       return {
         title: idea.split(/[.!?]/)[0] || "Untitled",
         script: text,
-        scenes: fallbackScenes.map(t => ({ text: t })),
+        scenes: fallbackScenes.map(t => ({ narration: t, visual: t })),
       };
     }
 
     const rawScenes = parsed.scenes || [];
     const normalizedScenes: SceneData[] = rawScenes.map(s => {
-      if (typeof s === "string") return { text: s };
-      return { text: s.text || "" };
+      if (typeof s === "string") return { narration: s, visual: s };
+      return { narration: (s as any).narration || (s as any).text || "", visual: (s as any).visual || (s as any).text || "" };
     });
 
-    const script = parsed.script || normalizedScenes.map(s => s.text).join("\n\n") || "";
+    const script = parsed.script || normalizedScenes.map(s => s.narration).join("\n\n") || "";
     const scenes = normalizedScenes.length > 0
       ? normalizedScenes
-      : script.split(/\n\n+/).filter((s: string) => s.trim()).map(t => ({ text: t }));
+      : script.split(/\n\n+/).filter((s: string) => s.trim()).map(t => ({ narration: t, visual: t }));
 
     return {
       title: idea.split(/[.!?]/)[0] || "Untitled",

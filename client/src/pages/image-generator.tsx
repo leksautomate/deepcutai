@@ -24,7 +24,7 @@ const POLLINATIONS_MODELS = [
   { value: "nanobanana-pro", label: "Nanobanana Pro" },
 ];
 
-export default function ImageGenerator() {
+export default function ImageGeneratorPage() {
   const { toast } = useToast();
   const [prompt, setPrompt] = useState("");
   const [generator, setGenerator] = useState("wavespeed");

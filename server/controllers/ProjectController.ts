@@ -54,6 +54,11 @@ const generateAssetsSchema = z.object({
         firstPageFrequency: z.number().min(5).max(120).optional(),
         restFrequency: z.number().min(5).max(240).optional(),
     }).optional(),
+    scenes: z.array(z.object({
+        narration: z.string(),
+        visual: z.string(),
+    })).optional(),
+    customCharacters: z.array(z.any()).optional(),
 });
 
 const renderVideoSchema = z.object({
@@ -135,10 +140,18 @@ export class ProjectController extends BaseController {
         let finalScript = script;
 
         // 2. Split Scenes
-        const appSettings = getAppSettings();
-        // Use provided sceneSettings or fall back to global app settings
-        const splitSettings = sceneSettings || appSettings.sceneSettings;
-        const scenesText = await splitScriptIntoScenes(finalScript, splitSettings);
+        let scenesText: { narration: string; visual: string; }[] = [];
+
+        if (body.scenes && Array.isArray(body.scenes) && body.scenes.length > 0) {
+            scenesText = body.scenes;
+        } else {
+            const appSettings = getAppSettings();
+            // Use provided sceneSettings or fall back to global app settings
+            const splitSettings = sceneSettings || appSettings.sceneSettings;
+            const splitStrings = await splitScriptIntoScenes(finalScript, splitSettings);
+            // Default split script doesn't have split visuals, so they are the same
+            scenesText = splitStrings.map(text => ({ narration: text, visual: text }));
+        }
 
         // Resolve resolution - normalize to 1024-based sizing for consistent image generation
         const resOption = resolutionOptions.find(r => r.id === resolution);
@@ -184,7 +197,7 @@ export class ProjectController extends BaseController {
 
                 generatedScenes.push({
                     id: sceneId,
-                    text: scenesText[j],
+                    text: scenesText[j].narration,
                     audioFile: fs.existsSync(audioPath) ? `/assets/${projectId}/${sceneId}.mp3` : undefined,
                     imageFile: fs.existsSync(imagePath) ? `/assets/${projectId}/${sceneId}.png` : undefined,
                     videoFile: fs.existsSync(videoFilePath) ? `/assets/${projectId}/${sceneId}.mp4` : undefined,
@@ -196,9 +209,14 @@ export class ProjectController extends BaseController {
             logInfo("BG_GEN", `Pre-populated ${generatedScenes.length} completed scenes`, { projectId });
         }
 
+        // Generate a locked seed for character consistency across WaveSpeed frames
+        const lockedSeed = Math.floor(Math.random() * 1000000);
+
         // Iterate (start from startFromScene)
         for (let i = startFromScene; i < scenesText.length; i++) {
-            const sceneText = scenesText[i];
+            const scene = scenesText[i];
+            const sceneTextNarration = scene.narration;
+            const sceneTextVisual = scene.visual;
             const sceneId = `scene-${i + 1}`;
 
             try {
@@ -227,13 +245,13 @@ export class ProjectController extends BaseController {
                 if (effectiveTtsProvider === "inworld") {
                     const { generateInworldTTS } = await import("../services/inworld-tts");
                     ttsResult = await generateInworldTTS({
-                        text: sceneText,
+                        text: sceneTextNarration,
                         voiceId: resolvedVoiceId,
                         outputPath: ttsPath,
                     });
                 } else {
                     const speechifyResult = await generateTTS({
-                        text: sceneText,
+                        text: sceneTextNarration,
                         voiceId: resolvedVoiceId,
                         outputPath: ttsPath,
                     });
@@ -262,7 +280,7 @@ export class ProjectController extends BaseController {
                 }
 
                 const imagePrompt = await generateImagePromptWithGroq({
-                    sceneText,
+                    sceneText: sceneTextVisual,
                     imageStyle: imageStyle || "cinematic",
                     customStyle: customStyleForPrompt,
                 });
@@ -299,8 +317,8 @@ export class ProjectController extends BaseController {
                             throw new Error(`${selectedGenerator} API key not configured. Please add your API key in Settings.`);
                         }
                         const imageUrl = selectedGenerator === "wavespeed"
-                            ? await generateImageWithWaveSpeed(imagePrompt, apiKey, width, height)
-                            : await generateImageWithRunPod(imagePrompt, apiKey, width, height);
+                            ? await generateImageWithWaveSpeed(imagePrompt, apiKey, width, height, lockedSeed)
+                            : await generateImageWithRunPod(imagePrompt, apiKey, width, height, lockedSeed);
 
                         const imageResponse = await fetch(imageUrl);
                         if (!imageResponse.ok) throw new Error(`Failed to download image from ${imageUrl}`);
@@ -348,7 +366,7 @@ export class ProjectController extends BaseController {
 
                 generatedScenes.push({
                     id: sceneId,
-                    text: sceneText,
+                    text: sceneTextNarration,
                     audioFile: ttsResult.success ? `/assets/${projectId}/${sceneId}.mp3` : undefined,
                     imageFile: imageResult?.success ? `/assets/${projectId}/${sceneId}.png` : undefined,
                     durationInSeconds: ttsResult.durationSeconds || 5,
@@ -552,6 +570,7 @@ export class ProjectController extends BaseController {
     async generateScript(req: Request, res: Response) {
         try {
             const parsed = this.validateBody(generateScriptRequestSchema, req.body);
+            const { customCharacters, scenePacing, customScript, ...restParsed } = parsed;
 
             const userId = this.getUserId(req);
             const settings = getAppSettings();
@@ -561,20 +580,28 @@ export class ProjectController extends BaseController {
             let result;
             let usedProvider = primaryProvider;
 
+            const generationOptions = {
+                ...restParsed,
+                userId,
+                customCharacters: customCharacters as any,
+                scenePacing,
+                customScript
+            };
+
             try {
                 if (primaryProvider === "groq") {
-                    result = await generateScriptWithGroq({ ...parsed, userId });
+                    result = await generateScriptWithGroq(generationOptions);
                 } else {
-                    result = await generateScript({ ...parsed, userId });
+                    result = await generateScript(generationOptions);
                 }
             } catch (primaryError) {
                 this.logInfo("API", `Primary provider (${primaryProvider}) failed, trying fallback (${fallbackProvider})...`);
 
                 try {
                     if (fallbackProvider === "groq") {
-                        result = await generateScriptWithGroq({ ...parsed, userId });
+                        result = await generateScriptWithGroq(generationOptions);
                     } else {
-                        result = await generateScript({ ...parsed, userId });
+                        result = await generateScript(generationOptions);
                     }
                     usedProvider = fallbackProvider;
                 } catch (fallbackError) {
@@ -727,6 +754,7 @@ export class ProjectController extends BaseController {
             }
 
             const generatedScenes: Scene[] = [];
+            const lockedSeed = Math.floor(Math.random() * 1000000);
 
             for (let i = 0; i < scenes.length; i++) {
                 const sceneText = scenes[i].trim();
@@ -793,8 +821,8 @@ export class ProjectController extends BaseController {
                             throw new Error(`${imageGenerator} API key not configured. Please add your API key in Settings.`);
                         }
                         const imageUrl = imageGenerator === "wavespeed"
-                            ? await generateImageWithWaveSpeed(imagePrompt, apiKey, imageWidth, imageHeight)
-                            : await generateImageWithRunPod(imagePrompt, apiKey, imageWidth, imageHeight);
+                            ? await generateImageWithWaveSpeed(imagePrompt, apiKey, imageWidth, imageHeight, lockedSeed)
+                            : await generateImageWithRunPod(imagePrompt, apiKey, imageWidth, imageHeight, lockedSeed);
 
                         const imageResponse = await fetch(imageUrl);
                         if (!imageResponse.ok) throw new Error(`Failed to download image from ${imageUrl}`);

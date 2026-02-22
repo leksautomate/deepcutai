@@ -21,7 +21,6 @@ interface GenerationSettings {
   customStyleText?: string;
   resolution: string;
   imageGenerator?: string;
-  videoGenerator?: string;
   ttsProvider?: string;
 }
 
@@ -62,7 +61,6 @@ export function RenderPanel({ manifest, projectId, onRenderComplete, onGoToAsset
         resolution: generationSettings.resolution,
         transition: "fade",
         imageGenerator: generationSettings.imageGenerator || undefined,
-        videoGenerator: generationSettings.videoGenerator || undefined,
         ttsProvider: generationSettings.ttsProvider || "inworld",
       });
       return response.json();

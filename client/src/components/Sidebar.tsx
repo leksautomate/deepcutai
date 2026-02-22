@@ -9,7 +9,8 @@ import {
     LayoutDashboard,
     LogOut,
     ScrollText,
-    Mic2
+    Mic2,
+    Users
 } from "lucide-react";
 
 export function Sidebar() {
@@ -20,6 +21,7 @@ export function Sidebar() {
         { href: "/", icon: Video, label: "Create", testId: "nav-create" },
 
         { href: "/image-generator", icon: Sparkles, label: "Images", testId: "nav-images" },
+        { href: "/character-video", icon: Users, label: "Character Video", testId: "nav-character-video" },
         { href: "/long-tts", icon: Mic2, label: "Long TTS", testId: "nav-tts" },
         { href: "/my-videos", icon: Video, label: "Videos", testId: "nav-videos" },
         { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", testId: "nav-dashboard" },

@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { type ReferenceAsset } from "@shared/schema";
 
 interface ImageStyleSettings {
   art_style: string;
@@ -38,6 +39,7 @@ export interface CustomImageStyle {
 export interface AppSettings {
   customVoices: CustomVoice[];
   customImageStyles: CustomImageStyle[];
+  customCharacters: ReferenceAsset[];
   sceneSettings: SceneSettings;
   imageStyleSettings: ImageStyleSettings;
   transitionSettings: TransitionSettings;
@@ -52,6 +54,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     { id: "custom-liam", name: "Liam", voiceId: "4a404804-3c9b-47d5-bd46-05d97122c841", provider: "speechify" },
   ],
   customImageStyles: [],
+  customCharacters: [],
   sceneSettings: {
     firstPageFrequency: 5,
     restFrequency: 60,
@@ -83,6 +86,7 @@ function loadSettings(): AppSettings {
         transitionSettings: { ...DEFAULT_SETTINGS.transitionSettings, ...(saved.transitionSettings || {}) },
         customVoices: saved.customVoices || DEFAULT_SETTINGS.customVoices,
         customImageStyles: saved.customImageStyles || DEFAULT_SETTINGS.customImageStyles,
+        customCharacters: saved.customCharacters || DEFAULT_SETTINGS.customCharacters,
       };
     }
   } catch (err) {
@@ -112,11 +116,38 @@ export function getAppSettings(): AppSettings {
 export function updateAppSettings(updates: Partial<AppSettings>): void {
   if (updates.customVoices) appSettings.customVoices = updates.customVoices;
   if (updates.customImageStyles) appSettings.customImageStyles = updates.customImageStyles;
+  if (updates.customCharacters) appSettings.customCharacters = updates.customCharacters;
   if (updates.sceneSettings) appSettings.sceneSettings = { ...appSettings.sceneSettings, ...updates.sceneSettings };
   if (updates.imageStyleSettings) appSettings.imageStyleSettings = { ...appSettings.imageStyleSettings, ...updates.imageStyleSettings };
   if (updates.transitionSettings) appSettings.transitionSettings = { ...appSettings.transitionSettings, ...updates.transitionSettings };
   if (updates.scriptProvider) appSettings.scriptProvider = updates.scriptProvider;
   saveSettings();
+}
+
+export function getCustomCharacters(): ReferenceAsset[] {
+  return appSettings.customCharacters;
+}
+
+export function addCustomCharacter(character: ReferenceAsset): ReferenceAsset {
+  appSettings.customCharacters.push(character);
+  saveSettings();
+  return character;
+}
+
+export function updateCustomCharacter(id: string, updates: Partial<ReferenceAsset>): ReferenceAsset | null {
+  const index = appSettings.customCharacters.findIndex(c => c.id === id);
+  if (index === -1) return null;
+  appSettings.customCharacters[index] = { ...appSettings.customCharacters[index], ...updates };
+  saveSettings();
+  return appSettings.customCharacters[index];
+}
+
+export function deleteCustomCharacter(id: string): boolean {
+  const index = appSettings.customCharacters.findIndex(c => c.id === id);
+  if (index === -1) return false;
+  appSettings.customCharacters.splice(index, 1);
+  saveSettings();
+  return true;
 }
 
 export function getCustomImageStyles(): CustomImageStyle[] {

@@ -28,7 +28,6 @@ export default function ProjectEditor() {
   const [resolution, setResolution] = useState("1080p");
   const [imageGenerator, setImageGenerator] = useState("wavespeed");
   const [customStyleText, setCustomStyleText] = useState("");
-  const [impactTextCount, setImpactTextCount] = useState(2);
   const [manifest, setManifest] = useState<VideoManifest | undefined>();
 
   const { data: project, isLoading } = useQuery<VideoProject>({
@@ -236,8 +235,6 @@ export default function ProjectEditor() {
                   onResolutionChange={setResolution}
                   onImageGeneratorChange={setImageGenerator}
                   onGenerateAssets={handleAssetsGenerated}
-                  impactTextCount={impactTextCount}
-                  onImpactTextCountChange={setImpactTextCount}
                   script={editedScript || project.script}
                   projectId={projectId}
                 />
@@ -257,7 +254,6 @@ export default function ProjectEditor() {
                   customStyleText,
                   resolution,
                   imageGenerator,
-                  impactTextCount,
                 }}
               />
             </TabsContent>

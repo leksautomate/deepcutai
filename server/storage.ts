@@ -15,24 +15,24 @@ export interface IStorage {
   getUserCount(): Promise<number>;
   createUser(user: InsertUser): Promise<User>;
   updateUserPassword(id: string, hashedPassword: string): Promise<void>;
-  
+
   getVideoProject(id: string): Promise<VideoProject | undefined>;
   getAllVideoProjects(): Promise<VideoProject[]>;
   createVideoProject(project: InsertVideoProject): Promise<VideoProject>;
   updateVideoProject(id: string, updates: Partial<InsertVideoProject>): Promise<VideoProject | undefined>;
   deleteVideoProject(id: string): Promise<boolean>;
-  
+
   getApiKey(userId: string, provider: string): Promise<ApiKey | undefined>;
   getAllApiKeys(userId: string): Promise<ApiKey[]>;
   createApiKey(apiKey: InsertApiKey & { userId: string }): Promise<ApiKey>;
   updateApiKey(id: string, updates: Partial<InsertApiKey>): Promise<ApiKey | undefined>;
   deleteApiKey(id: string): Promise<boolean>;
-  
+
   getUsageStats(): Promise<UsageStats>;
   incrementUsage(type: 'video' | 'render' | 'script' | 'image' | 'audio', count?: number, duration?: number): Promise<void>;
-  
+
   clearAllData(): Promise<{ projectsDeleted: number; analyticsDeleted: number }>;
-  
+
   sessionStore: session.Store;
 }
 
@@ -163,7 +163,7 @@ export class DatabaseStorage implements IStorage {
   private async getOrCreateTodayUsage(): Promise<UsageAnalytics> {
     const today = this.getTodayKey();
     const result = await db.select().from(usageAnalytics).where(eq(usageAnalytics.date, today));
-    
+
     if (result.length > 0) {
       return result[0];
     }
@@ -178,7 +178,7 @@ export class DatabaseStorage implements IStorage {
       audioGenerated: 0,
       totalDurationSeconds: 0,
     }).returning();
-    
+
     return newUsage[0];
   }
 
@@ -186,14 +186,14 @@ export class DatabaseStorage implements IStorage {
     const allUsage = await db.select().from(usageAnalytics);
     const today = this.getTodayKey();
     const todayUsage = allUsage.find(u => u.date === today);
-    
+
     const totalVideos = allUsage.reduce((sum, u) => sum + (u.videosCreated || 0), 0);
     const totalRendered = allUsage.reduce((sum, u) => sum + (u.videosRendered || 0), 0);
     const totalScriptsGenerated = allUsage.reduce((sum, u) => sum + (u.scriptsGenerated || 0), 0);
     const totalImagesGenerated = allUsage.reduce((sum, u) => sum + (u.imagesGenerated || 0), 0);
     const totalAudioGenerated = allUsage.reduce((sum, u) => sum + (u.audioGenerated || 0), 0);
     const totalDurationSeconds = allUsage.reduce((sum, u) => sum + (u.totalDurationSeconds || 0), 0);
-    
+
     return {
       totalVideos,
       totalRendered,
@@ -208,9 +208,9 @@ export class DatabaseStorage implements IStorage {
 
   async incrementUsage(type: 'video' | 'render' | 'script' | 'image' | 'audio', count: number = 1, duration: number = 0): Promise<void> {
     const usage = await this.getOrCreateTodayUsage();
-    
+
     const updates: Partial<UsageAnalytics> = {};
-    
+
     switch (type) {
       case 'video':
         updates.videosCreated = (usage.videosCreated || 0) + count;
@@ -231,7 +231,7 @@ export class DatabaseStorage implements IStorage {
         updates.audioGenerated = (usage.audioGenerated || 0) + count;
         break;
     }
-    
+
     await db.update(usageAnalytics)
       .set(updates)
       .where(eq(usageAnalytics.id, usage.id));
@@ -318,6 +318,9 @@ export class MemStorage implements IStorage {
       imageStyle: project.imageStyle ?? null,
       customStyleText: project.customStyleText ?? null,
       imageGenerator: project.imageGenerator ?? null,
+      videoGenerator: project.videoGenerator ?? null,
+      ttsProvider: project.ttsProvider ?? null,
+      resolution: project.resolution ?? null,
       manifest: project.manifest ?? null,
       outputPath: project.outputPath ?? null,
       thumbnailPath: project.thumbnailPath ?? null,
@@ -420,14 +423,14 @@ export class MemStorage implements IStorage {
     const allUsage = Array.from(this.usageData.values());
     const today = this.getTodayKey();
     const todayUsage = this.usageData.get(today);
-    
+
     const totalVideos = allUsage.reduce((sum, u) => sum + (u.videosCreated || 0), 0);
     const totalRendered = allUsage.reduce((sum, u) => sum + (u.videosRendered || 0), 0);
     const totalScriptsGenerated = allUsage.reduce((sum, u) => sum + (u.scriptsGenerated || 0), 0);
     const totalImagesGenerated = allUsage.reduce((sum, u) => sum + (u.imagesGenerated || 0), 0);
     const totalAudioGenerated = allUsage.reduce((sum, u) => sum + (u.audioGenerated || 0), 0);
     const totalDurationSeconds = allUsage.reduce((sum, u) => sum + (u.totalDurationSeconds || 0), 0);
-    
+
     return {
       totalVideos,
       totalRendered,
@@ -442,7 +445,7 @@ export class MemStorage implements IStorage {
 
   async incrementUsage(type: 'video' | 'render' | 'script' | 'image' | 'audio', count: number = 1, duration: number = 0): Promise<void> {
     const usage = this.getOrCreateTodayUsage();
-    
+
     switch (type) {
       case 'video':
         usage.videosCreated = (usage.videosCreated || 0) + count;
@@ -463,7 +466,7 @@ export class MemStorage implements IStorage {
         usage.audioGenerated = (usage.audioGenerated || 0) + count;
         break;
     }
-    
+
     this.usageData.set(this.getTodayKey(), usage);
   }
 

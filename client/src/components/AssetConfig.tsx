@@ -38,14 +38,12 @@ interface AssetConfigProps {
   imageStyle: string;
   resolution: string;
   imageGenerator?: string;
-  videoGenerator?: string;
   ttsProvider?: TTSProvider;
   customStyleText?: string;
   onVoiceChange: (voiceId: string) => void;
   onImageStyleChange: (imageStyle: string) => void;
   onResolutionChange: (resolution: string) => void;
   onImageGeneratorChange?: (generator: string) => void;
-  onVideoGeneratorChange?: (generator: string) => void;
   onTtsProviderChange?: (provider: TTSProvider) => void;
   onCustomStyleChange?: (styleText: string) => void;
   onGenerateAssets: (projectId: string, manifest: VideoManifest) => void;
@@ -58,14 +56,12 @@ export function AssetConfig({
   imageStyle,
   resolution,
   imageGenerator = "wavespeed",
-  videoGenerator,
   ttsProvider = "inworld",
   customStyleText = "",
   onVoiceChange,
   onImageStyleChange,
   onResolutionChange,
   onImageGeneratorChange,
-  onVideoGeneratorChange,
   onTtsProviderChange,
   onCustomStyleChange,
   onGenerateAssets: _onGenerateAssets,

@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { lazy, Suspense } from "react";
+import { ProtectedRoute } from "./lib/protected-route"; // Added ProtectedRoute import
 
 // Lazy load all pages for code splitting
 const Home = lazy(() => import("@/pages/home"));
@@ -22,6 +23,7 @@ const ApiSettings = lazy(() => import("@/pages/api-settings"));
 const LogsDashboard = lazy(() => import("@/pages/logs-dashboard"));
 const LongTTS = lazy(() => import("@/pages/long-tts"));
 const NotFound = lazy(() => import("@/pages/not-found"));
+const CharacterVideoPage = lazy(() => import("@/pages/character-video")); // Added CharacterVideoPage lazy import
 
 
 // Simple loading spinner
@@ -114,16 +116,16 @@ function AppRoutes() {
       <Suspense fallback={<PageLoader />}>
         <div key={location} className="page-enter h-full">
           <Switch>
-            <Route path="/" component={Home} />
-            <Route path="/my-videos" component={MyVideos} />
-            <Route path="/project/:id" component={ProjectEditor} />
-            <Route path="/dashboard" component={Dashboard} />
-            <Route path="/settings" component={SettingsPage} />
-            <Route path="/image-generator" component={ImageGenerator} />
-
-            <Route path="/long-tts" component={LongTTS} />
-            <Route path="/api-settings" component={ApiSettings} />
-            <Route path="/logs" component={LogsDashboard} />
+            <ProtectedRoute path="/" component={Home} />
+            <ProtectedRoute path="/my-videos" component={MyVideos} />
+            <ProtectedRoute path="/project/:id" component={ProjectEditor} />
+            <ProtectedRoute path="/dashboard" component={Dashboard} />
+            <ProtectedRoute path="/settings" component={SettingsPage} />
+            <ProtectedRoute path="/image-generator" component={ImageGenerator} />
+            <ProtectedRoute path="/character-video" component={CharacterVideoPage} /> {/* Added CharacterVideoPage route */}
+            <ProtectedRoute path="/long-tts" component={LongTTS} />
+            <ProtectedRoute path="/api-settings" component={ApiSettings} />
+            <ProtectedRoute path="/logs" component={LogsDashboard} />
             <Route component={NotFound} />
           </Switch>
         </div>

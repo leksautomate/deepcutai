@@ -9,15 +9,21 @@ export interface ImagePromptOptions {
   customStyle?: HistoricalStyle;
 }
 
+import type { ReferenceAsset } from "@shared/schema";
+
 export interface GroqScriptOptions {
   topic: string;
   style?: "educational" | "entertaining" | "documentary" | "storytelling";
   duration?: "30s" | "1min" | "2min" | "10min";
   userId?: string;
+  customCharacters?: ReferenceAsset[];
+  scenePacing?: "auto" | "sentence" | "manual";
+  customScript?: boolean;
 }
 
 export interface GroqSceneData {
-  text: string;
+  narration: string;
+  visual: string;
 }
 
 export interface GroqGeneratedScript {
@@ -95,12 +101,14 @@ Return ONLY valid JSON with this exact structure:
 {
   "script": "Full script with one sentence per line, paragraphs separated by blank lines",
   "scenes": [
-    { "text": "Paragraph 1 text" },
-    { "text": "Paragraph 2 text" }
+    { 
+      "narration": "Paragraph 1 text to be spoken",
+      "visual": "Detailed visual description of Paragraph 1"
+    }
   ]
 }
 
-CRITICAL: Each paragraph in "script" becomes one visual scene. Aim for 4-8 scene paragraphs depending on duration.`;
+CRITICAL: Each paragraph in "script" becomes one scene. Aim for 4-8 scenes depending on duration.`;
 
 
 function getGroqDurationGuide(duration: string): string {
@@ -315,36 +323,112 @@ function generateFallbackPrompt(sceneText: string, imageStyle: string, customSty
   return `${styleDesc}, scene depicting: ${sceneText}, no text or watermarks, 16:9 landscape format`;
 }
 
-/**
- * Extract short B-Roll search keywords from scene text using Groq.
- * Returns 2-4 word search terms optimized for stock video APIs (Pexels, Pixabay).
- */
-export async function extractBrollKeywords(sceneText: string): Promise<string> {
-  const apiKey = await getResolvedApiKey("groq");
+
+
+export { DEFAULT_HISTORICAL_STYLE };
+
+export async function generateScriptWithGroq(options: GroqScriptOptions): Promise<GroqGeneratedScript> {
+  const { topic, style = "documentary", duration = "1min", userId, customCharacters, scenePacing, customScript } = options;
+  const apiKey = await getResolvedApiKey("groq", userId);
 
   if (!apiKey) {
-    logWarning("Groq", "GROQ_API_KEY not configured, using fallback keywords");
-    return extractFallbackKeywords(sceneText);
+    throw new Error("GROQ_API_KEY not configured. Please add it in Settings.");
   }
 
-  const systemPrompt = `You are a stock video search keyword extractor. Given a scene description from a video script, extract the best 2-4 word search query for finding matching B-Roll footage on stock video sites like Pexels or Pixabay.
+  let prompt = "";
+  let systemContent = VIRAL_SCRIPT_SYSTEM_PROMPT;
 
-RULES:
-- Output ONLY the search keywords, nothing else
-- Use 2-4 simple, concrete words
-- Focus on the main visual subject and action
-- Use words that stock video sites would tag their videos with
-- NO abstract concepts - use visually concrete terms
-- NO punctuation, quotes, or formatting
+  // Handle Character Injections
+  let castInstructions = "";
+  if (customCharacters && customCharacters.length > 0) {
+    const castDescriptions = customCharacters.map(c => `[${c.name}]: ${c.promptText}`).join("\n");
+    castInstructions = `
+You are a professional AI visual storyboard engineer specialising in YouTube videos.
 
-EXAMPLES:
-- Scene about coffee origins → "coffee beans roasting"
-- Scene about ancient Rome → "roman colosseum ruins"  
-- Scene about ocean pollution → "ocean plastic pollution"
-- Scene about space exploration → "rocket launch space"
-- Scene about cooking dinner → "chef cooking kitchen"`;
+# CAST REQUIREMENTS (CRITICAL)
+The following characters are starring in this video:
+${castDescriptions}
 
-  const userPrompt = `Extract stock video search keywords from this scene:\n\n"${sceneText}"`;
+IMAGE PROMPT REQUIREMENTS (MANDATORY):
+• Full-body view of the SAME character in every image based on the cast descriptions
+• Head-to-toe visibility — NEVER cropped
+• Style: Simple 2D hand-drawn minimalist cartoon / doodle illustration
+• Visual feel similar to basic explainer illustrations (thin black outlines, flat fills)
+• NO realism, NO 3D, NO cinematic lighting
+• Character centered or slightly off-center
+• Clean white or very light background
+• Thin or medium black outlines (not sketchy, not painterly)
+• Flat pastel or muted colours with very light or no shading
+• Simple facial features (round head, minimal eyes, eyebrows, mouth)
+• Clear, exaggerated facial expressions matching the script line emotion
+
+Character Identity (STRICT):
+• The Image Prompt MUST explicitly mention the character's name and visual description at the beginning of EVERY image prompt.
+• Example format: "Full-body illustration of [actor name], [actor description] standing..."
+• The same styling must be used consistently across all image prompts.
+
+Character clothing (keep identical every time):
+• Plain T-shirt or hoodie
+• Simple jeans or trousers
+• Basic sneakers
+• No logos, no patterns
+
+Props (ONLY when relevant to the script line):
+• Alarm clock, Calendar, Money bills, Simple charts, Paycheck envelope, Phone or laptop (or based on the story)
+• Props must be simple line-art style, matching the character
+• NO text of any kind inside the image
+• Clean, uncluttered, explainer-style composition
+• Clearly describe pose, facial expression, body language, props, and explicitly confirm full-body framing
+`;
+  }
+
+  if (customScript) {
+    // Custom Script Flow
+    let pacingInstructions = "";
+    if (scenePacing === "sentence") {
+      pacingInstructions = "Break the script into visual scenes sentence-by-sentence. Every single sentence must be its own scene.";
+    } else if (scenePacing === "manual") {
+      pacingInstructions = "Break the script into visual scenes strictly based on the user's [SCENE] markers in the text.";
+    } else {
+      pacingInstructions = "Break the script into logical visual scenes that last approximately 5-7 seconds of speaking time each.";
+    }
+
+    systemContent = `You are a video script processor.
+    
+Your single job is to take the EXACT provided user script and format it into our required JSON structure for video generation.
+
+${castInstructions}
+
+# PACING RULES
+${pacingInstructions}`;
+
+    prompt = `# THE SCRIPT TO PROCESS
+"${topic}"
+
+Return your response as ONLY valid JSON:
+{
+  "script": "The exact script provided above, without changes to the words.",
+  "scenes": [
+    { 
+       "narration": "The exact dialogue for this scene",
+       "visual": "Detailed visual description of what is visible in the scene"
+    }
+  ]
+}`;
+  } else {
+    // Standard AI Generation Flow
+    const durationGuide = getGroqDurationGuide(duration);
+
+    systemContent = `${VIRAL_SCRIPT_SYSTEM_PROMPT}\n${castInstructions}`;
+
+    prompt = `## YOUR TASK
+
+Create a script about: "${topic}"
+
+Duration: ${durationGuide}
+
+Style: ${style === "documentary" ? "Cold, factual documentary narrator" : style === "storytelling" ? "Narrative and immersive" : style === "entertaining" ? "Engaging with energy" : "Informative and clear"}`;
+  }
 
   try {
     const response = await fetch(GROQ_API_URL, {
@@ -356,99 +440,11 @@ EXAMPLES:
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 30,
-      }),
-    });
-
-    if (!response.ok) {
-      logError("Groq", "B-Roll keyword extraction failed", undefined, { status: response.status });
-      return extractFallbackKeywords(sceneText);
-    }
-
-    const data = await response.json();
-    const keywords = data.choices?.[0]?.message?.content?.trim();
-
-    if (keywords) {
-      // Clean up: remove quotes, asterisks, and limit to 4 words
-      const cleaned = keywords.replace(/["""*#\n]/g, '').trim().split(/\s+/).slice(0, 4).join(' ');
-      logInfo("Groq", `B-Roll keywords: "${cleaned}"`, { scene: sceneText.slice(0, 60) });
-      return cleaned;
-    }
-
-    return extractFallbackKeywords(sceneText);
-  } catch (error) {
-    logError("Groq", "B-Roll keyword extraction error", error);
-    return extractFallbackKeywords(sceneText);
-  }
-}
-
-/**
- * Fallback: extract keywords from scene text without AI.
- * Picks the most meaningful nouns/words from the text.
- */
-function extractFallbackKeywords(sceneText: string): string {
-  const stopWords = new Set(["the", "a", "an", "is", "was", "were", "are", "been", "be", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "shall", "can", "need", "dare", "ought", "used", "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into", "through", "during", "before", "after", "above", "below", "between", "out", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "just", "because", "but", "and", "or", "if", "while", "that", "this", "these", "those", "it", "its", "he", "she", "they", "them", "his", "her", "their", "our", "your", "my", "we", "you", "i", "me", "him", "us"]);
-
-  const words = sceneText.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
-  return words.slice(0, 3).join(' ') || "nature landscape";
-}
-
-export { DEFAULT_HISTORICAL_STYLE };
-
-export async function generateScriptWithGroq(options: GroqScriptOptions): Promise<GroqGeneratedScript> {
-  const { topic, style = "documentary", duration = "1min", userId } = options;
-
-  const apiKey = await getResolvedApiKey("groq", userId);
-  if (!apiKey) {
-    throw new Error("Groq API key not configured. Please add it in Settings.");
-  }
-
-  const durationGuide = getGroqDurationGuide(duration);
-
-  const styleText = style === "documentary"
-    ? "Cold, factual documentary narrator"
-    : style === "storytelling"
-      ? "Narrative and immersive"
-      : style === "entertaining"
-        ? "Engaging with energy"
-        : "Informative and clear";
-
-  const userPrompt = `Create a script about: "${topic}"
-
-Duration: ${durationGuide}
-
-Style: ${styleText}
-
-**REMEMBER: Output ONLY the script. No titles, no labels, no explanations. Just the clean script text with one sentence per line.**
-
-Return your response as JSON:
-{
-  "script": "The full script with each sentence on its own line",
-  "scenes": [
-    { "text": "Scene 1 paragraph" },
-    { "text": "Scene 2 paragraph" }
-  ]
-}`;
-
-  try {
-    const response = await fetch(GROQ_API_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-oss-120b",
-        messages: [
-          { role: "system", content: VIRAL_SCRIPT_SYSTEM_PROMPT },
-          { role: "user", content: userPrompt }
+          { role: "system", content: systemContent },
+          { role: "user", content: prompt }
         ],
         temperature: 0.7,
-        max_tokens: 8000,
+        max_tokens: 4000,
         response_format: { type: "json_object" },
       }),
     });
@@ -471,12 +467,12 @@ Return your response as JSON:
       parsed = JSON.parse(content);
     } catch (parseError) {
       logError("Groq", "Failed to parse JSON response", undefined, { preview: content.slice(0, 200) });
-      // Fallback: treat the entire response as the script
-      const fallbackScenes = content.split(/\n\n+/).filter((s: string) => s.trim());
+      // Fallback: treat the entire response as a script, splitting by double newlines
+      const fallbackScenes = content.split("\n\n").filter(Boolean);
       return {
-        title: `Video about ${topic}`,
+        title: "Generated Video",
         script: content,
-        scenes: fallbackScenes.map((t: string) => ({ text: t })),
+        scenes: fallbackScenes.map((s: string) => ({ narration: s, visual: s }))
       };
     }
 
@@ -484,15 +480,15 @@ Return your response as JSON:
     const rawScenes = parsed.scenes || [];
     const normalizedScenes: GroqSceneData[] = rawScenes.map(s => {
       if (typeof s === "string") {
-        return { text: s };
+        return { narration: s, visual: s };
       }
-      return { text: s.text || "" };
+      return { narration: (s as any).narration || (s as any).text || "", visual: (s as any).visual || (s as any).text || "" };
     });
 
-    const script = parsed.script || normalizedScenes.map(s => s.text).join("\n\n") || "";
+    const script = parsed.script || normalizedScenes.map(s => s.narration).join("\n\n") || "";
     const scenes = normalizedScenes.length > 0
       ? normalizedScenes
-      : script.split(/\n\n+/).filter((s: string) => s.trim()).map((t: string) => ({ text: t }));
+      : script.split(/\n\n+/).filter((s: string) => s.trim()).map((t: string) => ({ narration: t, visual: t }));
 
     return {
       title: `Video about ${topic}`,
@@ -738,14 +734,14 @@ Return as JSON: { "script": "full script text with paragraphs separated by blank
 
     const rawScenes = parsed.scenes || [];
     const normalizedScenes: GroqSceneData[] = rawScenes.map((s: any) => {
-      if (typeof s === "string") return { text: s };
-      return { text: s.text || "" };
+      if (typeof s === "string") return { narration: s, visual: s };
+      return { narration: s.narration || s.text || "", visual: s.visual || s.text || "" };
     });
 
-    const script = parsed.script || normalizedScenes.map(s => s.text).join("\n\n") || "";
+    const script = parsed.script || normalizedScenes.map(s => s.narration).join("\n\n") || "";
     const scenes = normalizedScenes.length > 0
       ? normalizedScenes
-      : script.split(/\n\n+/).filter((s: string) => s.trim()).map((t: string) => ({ text: t }));
+      : script.split(/\n\n+/).filter((s: string) => s.trim()).map((t: string) => ({ narration: t, visual: t }));
 
     return {
       title: idea.split(/[.!?]/)[0] || "Untitled",

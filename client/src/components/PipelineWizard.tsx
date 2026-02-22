@@ -148,13 +148,11 @@ export function PipelineWizard() {
               customStyleText={project.customStyleText}
               resolution={project.resolution}
               imageGenerator={project.imageGenerator}
-              videoGenerator={project.videoGenerator}
               onVoiceChange={(voiceId) => updateProject({ voiceId })}
               onImageStyleChange={(imageStyle) => updateProject({ imageStyle })}
               onCustomStyleChange={(customStyleText) => updateProject({ customStyleText })}
               onResolutionChange={(resolution) => updateProject({ resolution })}
               onImageGeneratorChange={(imageGenerator) => updateProject({ imageGenerator })}
-              onVideoGeneratorChange={(videoGenerator) => updateProject({ videoGenerator })}
               onGenerateAssets={handleAssetsGenerated}
               script={project.script}
               projectId={project.id}
@@ -174,7 +172,6 @@ export function PipelineWizard() {
                 customStyleText: project.customStyleText,
                 resolution: project.resolution,
                 imageGenerator: project.imageGenerator || "",
-                videoGenerator: project.videoGenerator || "",
               }}
             />
           )}

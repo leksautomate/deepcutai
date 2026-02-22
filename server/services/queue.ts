@@ -91,6 +91,7 @@ async function processScriptProject(project: ScriptQueuedProject) {
     const generatedScenes: Scene[] = [];
     const totalScenes = scenes.length;
     const imageGenerator = project.imageGenerator || "wavespeed";
+    const lockedSeed = Math.floor(Math.random() * 1000000);
 
     for (let i = 0; i < scenes.length; i++) {
       const sceneText = scenes[i].trim();
@@ -171,7 +172,7 @@ async function processScriptProject(project: ScriptQueuedProject) {
           imageResult = { success: true };
         } catch (error) {
           logError("QUEUE", `Pollinations generation error`, error);
-          imageResult = { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+          throw new Error(error instanceof Error ? error.message : "Pollinations error");
         }
       } else if (imageGenerator === "wavespeed" || imageGenerator === "runpod") {
         const { generateImageWithWaveSpeed, generateImageWithRunPod } = await import("./image-generators");
@@ -183,8 +184,8 @@ async function processScriptProject(project: ScriptQueuedProject) {
           }
 
           const imageUrl = imageGenerator === "wavespeed"
-            ? await generateImageWithWaveSpeed(imagePrompt, apiKey, imageWidth, imageHeight)
-            : await generateImageWithRunPod(imagePrompt, apiKey, imageWidth, imageHeight);
+            ? await generateImageWithWaveSpeed(imagePrompt, apiKey, imageWidth, imageHeight, lockedSeed)
+            : await generateImageWithRunPod(imagePrompt, apiKey, imageWidth, imageHeight, lockedSeed);
 
           const imageResponse = await fetch(imageUrl);
           if (!imageResponse.ok) {
@@ -230,7 +231,7 @@ async function processScriptProject(project: ScriptQueuedProject) {
           imageResult = { success: true };
         } catch (error) {
           logError("QUEUE", `Whisk generation error`, error);
-          imageResult = { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+          throw new Error(error instanceof Error ? error.message : "Whisk error");
         }
       } else {
         // Use centralized API key resolver for Seedream/Freepik
@@ -244,6 +245,7 @@ async function processScriptProject(project: ScriptQueuedProject) {
           style: project.imageStyle,
           apiKey: apiKey || undefined,
         });
+        if (!imageResult.success) throw new Error("Seedream error: " + imageResult.error);
       }
 
       const motionOptions = motionEffects;
@@ -382,6 +384,7 @@ async function processProject(project: QueuedProject) {
 
     const generatedScenes: Scene[] = [];
     const totalScenes = scenes.length;
+    const lockedSeed = Math.floor(Math.random() * 1000000);
 
     for (let i = 0; i < scenes.length; i++) {
       const sceneText = scenes[i].trim();
@@ -453,7 +456,7 @@ async function processProject(project: QueuedProject) {
           imageResult = { success: true };
         } catch (error) {
           logError("QUEUE", `Pollinations generation error`, error);
-          imageResult = { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+          throw new Error(error instanceof Error ? error.message : "Pollinations error");
         }
       } else if (imageGenerator === "wavespeed" || imageGenerator === "runpod") {
         const { generateImageWithWaveSpeed, generateImageWithRunPod } = await import("./image-generators");
@@ -464,8 +467,8 @@ async function processProject(project: QueuedProject) {
           }
 
           const imageUrl = imageGenerator === "wavespeed"
-            ? await generateImageWithWaveSpeed(imagePrompt, apiKey, imageWidth, imageHeight)
-            : await generateImageWithRunPod(imagePrompt, apiKey, imageWidth, imageHeight);
+            ? await generateImageWithWaveSpeed(imagePrompt, apiKey, imageWidth, imageHeight, lockedSeed)
+            : await generateImageWithRunPod(imagePrompt, apiKey, imageWidth, imageHeight, lockedSeed);
 
           const imageResponse = await fetch(imageUrl);
           if (!imageResponse.ok) {
@@ -477,7 +480,7 @@ async function processProject(project: QueuedProject) {
           imageResult = { success: true };
         } catch (error) {
           logError("QUEUE", `${imageGenerator} generation error`, error);
-          imageResult = { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+          throw new Error(error instanceof Error ? error.message : `${imageGenerator} error`);
         }
       } else if (imageGenerator === "whisk") {
         const { generateImageWithWhisk } = await import("./image-generators");
@@ -511,7 +514,7 @@ async function processProject(project: QueuedProject) {
           imageResult = { success: true };
         } catch (error) {
           logError("QUEUE", `Whisk generation error`, error);
-          imageResult = { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+          throw new Error(error instanceof Error ? error.message : "Whisk error");
         }
       } else {
         // Use centralized API key resolver for Seedream/Freepik
