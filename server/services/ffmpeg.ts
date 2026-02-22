@@ -202,8 +202,9 @@ async function createSceneVideo(
 
   // Get actual audio duration if audio exists, otherwise use scene duration
   let duration = scene.durationInSeconds || 5;
+  let audioDuration = 0;
   if (audioFile && fs.existsSync(audioFile)) {
-    const audioDuration = await getAudioDuration(audioFile);
+    audioDuration = await getAudioDuration(audioFile);
     // Use audio duration + small buffer to ensure audio completes fully
     duration = Math.max(duration, audioDuration + 0.1);
     logInfo("Render", `Scene ${index}: Using audio duration ${audioDuration.toFixed(2)}s (+ 0.1s buffer)`);
@@ -267,6 +268,7 @@ async function createSceneVideo(
       "-i", sceneVideoPath,
       "-i", audioFile,
       "-c:v", "copy",
+      "-af", `afade=t=in:ss=0:d=0.05,afade=t=out:st=${Math.max(0, audioDuration - 0.1)}:d=0.1`,
       "-c:a", "aac",
       "-b:a", "256k",
       "-map", "0:v:0",
