@@ -29,6 +29,8 @@ export interface CharacterVideoState {
     setVoiceId: (id: string) => void;
     imageGenerator: string;
     setImageGenerator: (generator: string) => void;
+    imageStyle: string;
+    setImageStyle: (style: string) => void;
     syncToBackend?: () => void;
 
     // Generation Results
@@ -61,6 +63,7 @@ export function CharacterVideoProvider({ children }: { children: ReactNode }) {
     const [ttsProvider, setTtsProvider] = useState<TTSProvider>("inworld");
     const [voiceId, setVoiceId] = useState("Alex");
     const [imageGenerator, setImageGenerator] = useState("wavespeed");
+    const [imageStyle, setImageStyle] = useState("doodle");
 
     const [generatedScript, setGeneratedScript] = useState<string | null>(null);
     const [generatedScenes, setGeneratedScenes] = useState<any[] | null>(null);
@@ -157,6 +160,8 @@ export function CharacterVideoProvider({ children }: { children: ReactNode }) {
             setVoiceId,
             imageGenerator,
             setImageGenerator,
+            imageStyle,
+            setImageStyle,
             syncToBackend,
             generatedScript,
             setGeneratedScript,

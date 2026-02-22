@@ -1,5 +1,6 @@
 import { getResolvedApiKey } from "./api-keys";
 import { logInfo, logError, logWarning } from "./logger";
+import { getAppSettings } from "./settings";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -19,6 +20,7 @@ export interface GroqScriptOptions {
   customCharacters?: ReferenceAsset[];
   scenePacing?: "auto" | "sentence" | "manual";
   customScript?: boolean;
+  imageStyle?: string;
 }
 
 export interface GroqSceneData {
@@ -328,7 +330,7 @@ function generateFallbackPrompt(sceneText: string, imageStyle: string, customSty
 export { DEFAULT_HISTORICAL_STYLE };
 
 export async function generateScriptWithGroq(options: GroqScriptOptions): Promise<GroqGeneratedScript> {
-  const { topic, style = "documentary", duration = "1min", userId, customCharacters, scenePacing, customScript } = options;
+  const { topic, style = "documentary", duration = "1min", userId, customCharacters, scenePacing, customScript, imageStyle = "doodle" } = options;
   const apiKey = await getResolvedApiKey("groq", userId);
 
   if (!apiKey) {
@@ -342,6 +344,44 @@ export async function generateScriptWithGroq(options: GroqScriptOptions): Promis
   let castInstructions = "";
   if (customCharacters && customCharacters.length > 0) {
     const castDescriptions = customCharacters.map(c => `[${c.name}]: ${c.promptText}`).join("\n");
+
+    // Dynamically build the requested Art Style Constraints
+    let styleConstraint = "";
+    if (imageStyle === "doodle") {
+      styleConstraint = `• Style: Simple 2D hand-drawn minimalist cartoon / doodle illustration
+• Visual feel similar to basic explainer illustrations (thin black outlines, flat fills)
+• NO realism, NO 3D, NO cinematic lighting
+• Character centered or slightly off-center
+• Clean white or very light background
+• Thin or medium black outlines (not sketchy, not painterly)
+• Flat pastel or muted colours with very light or no shading
+• Simple facial features (round head, minimal eyes, eyebrows, mouth)
+• Clear, exaggerated facial expressions matching the script line emotion`;
+    } else {
+      let preset = STYLE_PRESETS[imageStyle] || STYLE_PRESETS["realistic"];
+
+      // Check for user-created custom styles if not found in hardcoded presets
+      if (imageStyle.startsWith("custom_")) {
+        const settings = getAppSettings();
+        const customId = imageStyle.replace("custom_", "");
+        const foundStyle = settings.customImageStyles?.find(s => s.id === customId);
+        if (foundStyle) {
+          preset = {
+            art_style: foundStyle.styleText,
+            composition: "Dynamic character framing",
+            color_style: "Matches art style mood",
+            fine_details: "High quality rendering preserving character details"
+          };
+        }
+      }
+
+      styleConstraint = `• Art Style: ${preset.art_style}
+• Composition: ${preset.composition}
+• Colors and Lighting: ${preset.color_style}
+• Details: ${preset.fine_details}
+• Ensure characters remain perfectly consistent in appearance across all frames using the exact provided descriptions.`;
+    }
+
     castInstructions = `
 You are a professional AI visual storyboard engineer specialising in YouTube videos.
 
@@ -352,15 +392,7 @@ ${castDescriptions}
 IMAGE PROMPT REQUIREMENTS (MANDATORY):
 • Full-body view of the SAME character in every image based on the cast descriptions
 • Head-to-toe visibility — NEVER cropped
-• Style: Simple 2D hand-drawn minimalist cartoon / doodle illustration
-• Visual feel similar to basic explainer illustrations (thin black outlines, flat fills)
-• NO realism, NO 3D, NO cinematic lighting
-• Character centered or slightly off-center
-• Clean white or very light background
-• Thin or medium black outlines (not sketchy, not painterly)
-• Flat pastel or muted colours with very light or no shading
-• Simple facial features (round head, minimal eyes, eyebrows, mouth)
-• Clear, exaggerated facial expressions matching the script line emotion
+${styleConstraint}
 
 Character Identity (STRICT):
 • The Image Prompt MUST explicitly mention the character's name and visual description at the beginning of EVERY image prompt.
@@ -374,10 +406,9 @@ Character clothing (keep identical every time):
 • No logos, no patterns
 
 Props (ONLY when relevant to the script line):
-• Alarm clock, Calendar, Money bills, Simple charts, Paycheck envelope, Phone or laptop (or based on the story)
-• Props must be simple line-art style, matching the character
+• Props must match the visual art style requested
 • NO text of any kind inside the image
-• Clean, uncluttered, explainer-style composition
+• Clean, uncluttered composition
 • Clearly describe pose, facial expression, body language, props, and explicitly confirm full-body framing
 `;
   }

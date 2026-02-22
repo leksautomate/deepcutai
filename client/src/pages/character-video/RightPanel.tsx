@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Wand2, Mic, Loader2 } from "lucide-react";
 import { useCharacterVideo } from "./CharacterContext";
-import { voiceOptions, inworldVoiceOptions } from "@shared/schema";
-import { useMutation } from "@tanstack/react-query";
+import { voiceOptions, inworldVoiceOptions, imageStyles } from "@shared/schema";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -28,6 +28,8 @@ export function RightPanel() {
         setVoiceId,
         imageGenerator,
         setImageGenerator,
+        imageStyle,
+        setImageStyle,
         characters,
         setGeneratedScript,
         setGeneratedScenes,
@@ -39,7 +41,7 @@ export function RightPanel() {
                 script: data.script,
                 title: `Character Video ${Date.now().toString(36)}`,
                 voiceId: voiceId,
-                imageStyle: "custom", // Uses the characters visual prompts
+                imageStyle: imageStyle,
                 resolution: "1080p",
                 transition: "fade",
                 ttsProvider: ttsProvider,
@@ -71,6 +73,7 @@ export function RightPanel() {
                 topic: topicOrScript,
                 customScript: inputMethod === "script",
                 scenePacing,
+                imageStyle,
                 customCharacters: characters.map(c => ({ id: c.id, name: c.name, category: c.category, promptText: c.promptText })),
             });
             return response.json();
@@ -84,6 +87,10 @@ export function RightPanel() {
         onError: (err: Error) => {
             toast({ title: "Generation Failed", description: err.message, variant: "destructive" });
         }
+    });
+
+    const { data: globalSettings } = useQuery<{ customImageStyles: any[] }>({
+        queryKey: ["/api/settings"],
     });
 
     const handleCreate = () => {
@@ -211,8 +218,32 @@ export function RightPanel() {
                                 Choose the AI engine for the visual elements of your character scenes. Whisk allows conversational persistence, WaveSpeed is fastest.
                             </p>
                         </div>
-                    </div>
 
+                        <div className="grid gap-2 mt-2">
+                            <Label>Image Style</Label>
+                            <Select value={imageStyle} onValueChange={setImageStyle}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select art style" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="doodle">Simple 2D Doodle (Default Storyboard)</SelectItem>
+                                    {imageStyles.filter(s => s.id !== "custom").map(style => (
+                                        <SelectItem key={style.id} value={style.id}>
+                                            {style.name}
+                                        </SelectItem>
+                                    ))}
+                                    {globalSettings?.customImageStyles?.map((style) => (
+                                        <SelectItem key={`custom-${style.id}`} value={`custom_${style.id}`}>
+                                            {style.name} (Custom)
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Choose the artistic vibe of your generated actors. Custom styles from Settings will appear here.
+                            </p>
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
 
