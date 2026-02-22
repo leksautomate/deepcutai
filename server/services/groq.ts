@@ -96,6 +96,7 @@ BAD HOOK (REVEALS TOO MUCH):
 ❌ Modern slang or colloquialisms
 ❌ Meta-commentary ("In this video," "Let me tell you")
 ❌ Questions to the audience
+❌ Real names of celebrities, politicians, or public figures in the visual descriptions (anonymize them into generic physical descriptions instead)
 
 # OUTPUT FORMAT
 
@@ -246,6 +247,7 @@ You are a professional AI image prompt architect creating prompts for cinematic 
 - Format: 16:9 landscape aspect ratio.
 - FORBIDDEN: text, words, letters, watermarks, signatures, logos, UI elements.
 - FORBIDDEN: meta-phrases like "create an image of" or "an illustration showing".
+- FORBIDDEN: real names of celebrities, public figures, politicians, or specific historical persons. You MUST anonymize them into generic physical descriptions (e.g., use "a middle-aged Roman general" instead of "Julius Caesar").
 
 # OUTPUT FORMAT
 **Style:** [Describe the art style, medium, and color palette based on the VISUAL STYLE]
