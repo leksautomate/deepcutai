@@ -4,17 +4,23 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wand2, Mic, Loader2 } from "lucide-react";
+import { Wand2, Mic, Loader2, Plus, Palette } from "lucide-react";
 import { useCharacterVideo } from "./CharacterContext";
 import { voiceOptions, inworldVoiceOptions, imageStyles } from "@shared/schema";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
+import { useState } from "react";
 
 export function RightPanel() {
     const { toast } = useToast();
     const [, setLocation] = useLocation();
+    const [isStyleDialogOpen, setIsStyleDialogOpen] = useState(false);
+    const [newStyleName, setNewStyleName] = useState("");
+    const [newStyleDescription, setNewStyleDescription] = useState("");
     const {
         inputMethod,
         setInputMethod,
@@ -89,9 +95,43 @@ export function RightPanel() {
         }
     });
 
-    const { data: globalSettings } = useQuery<{ customImageStyles: any[] }>({
+    const { data: globalSettings, refetch: refetchSettings } = useQuery<{ customImageStyles: any[] }>({
         queryKey: ["/api/settings"],
     });
+
+    const createCustomStyleMutation = useMutation({
+        mutationFn: async (data: { name: string, styleText: string }) => {
+            const res = await apiRequest("POST", "/api/custom-styles", data);
+            return res.json();
+        },
+        onSuccess: (data) => {
+            toast({
+                title: "Custom Style Created",
+                description: `Successfully added ${data.name} to your styles.`,
+            });
+            setIsStyleDialogOpen(false);
+            setNewStyleName("");
+            setNewStyleDescription("");
+            refetchSettings().then(() => {
+                setImageStyle(`custom_${data.id}`);
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: "Failed to create style",
+                description: error.message,
+                variant: "destructive",
+            });
+        }
+    });
+
+    const handleCreateCustomStyle = () => {
+        if (!newStyleName.trim() || !newStyleDescription.trim()) {
+            toast({ title: "Validation Error", description: "Name and description are required.", variant: "destructive" });
+            return;
+        }
+        createCustomStyleMutation.mutate({ name: newStyleName, styleText: newStyleDescription });
+    };
 
     const handleCreate = () => {
         if (!topicOrScript.trim()) {
@@ -233,15 +273,72 @@ export function RightPanel() {
                                         </SelectItem>
                                     ))}
                                     {globalSettings?.customImageStyles?.map((style) => (
-                                        <SelectItem key={`custom-${style.id}`} value={`custom_${style.id}`}>
+                                        <SelectItem key={`custom_${style.id}`} value={`custom_${style.id}`}>
                                             {style.name} (Custom)
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <p className="text-xs text-muted-foreground mt-1">
-                                Choose the artistic vibe of your generated actors. Custom styles from Settings will appear here.
-                            </p>
+
+                            {/* Visual Preview Card */}
+                            <div className="mt-2 p-3 bg-muted/50 rounded-md border border-border/50 text-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Palette className="w-4 h-4 text-primary" />
+                                    <span className="font-semibold text-foreground">Style Preview</span>
+                                </div>
+                                <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                                    {imageStyle === "doodle"
+                                        ? "Pure 2D line-art storyboard style. Clean white background, thin black outlines, flat pastel fills, minimal facial features, and zero shading/3D realism."
+                                        : imageStyle.startsWith("custom_")
+                                            ? globalSettings?.customImageStyles?.find(s => s.id === imageStyle.replace("custom_", ""))?.styleText || "Loading custom style..."
+                                            : imageStyles.find(s => s.id === imageStyle)?.description || "Select a style to see its visual characteristics."
+                                    }
+                                </p>
+                            </div>
+
+                            <Dialog open={isStyleDialogOpen} onOpenChange={setIsStyleDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" size="sm" className="w-full mt-1 border-dashed">
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Create Custom Style
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Create Custom Art Style</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-4 py-4">
+                                        <div className="space-y-2">
+                                            <Label>Style Name</Label>
+                                            <Input
+                                                placeholder="e.g., Cyberpunk Neon, Watercolor Portrait..."
+                                                value={newStyleName}
+                                                onChange={e => setNewStyleName(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Art Style Instructions (Prompt Logic)</Label>
+                                            <Textarea
+                                                placeholder="Describe the exact aesthetic rules... e.g., 'Retro 80s anime style, heavy film grain, neon pinks and blues, cel-shaded...'"
+                                                className="min-h-[100px]"
+                                                value={newStyleDescription}
+                                                onChange={e => setNewStyleDescription(e.target.value)}
+                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                These exact instructions will be injected into the AI generation prompt to guide character appearance.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            className="w-full"
+                                            onClick={handleCreateCustomStyle}
+                                            disabled={createCustomStyleMutation.isPending}
+                                        >
+                                            {createCustomStyleMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                            Save & Use Style
+                                        </Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                         </div>
                     </div>
                 </CardContent>
