@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 export function RightPanel() {
     const { toast } = useToast();
@@ -97,6 +97,36 @@ export function RightPanel() {
 
     const { data: globalSettings, refetch: refetchSettings } = useQuery<{ customImageStyles: any[] }>({
         queryKey: ["/api/settings"],
+    });
+
+    const activeStyleText = useMemo(() => {
+        if (imageStyle === "doodle") {
+            return "Pure 2D line-art storyboard style. Clean white background, thin black outlines, flat pastel fills, minimal facial features, and zero shading/3D realism.";
+        }
+        if (imageStyle.startsWith("custom_")) {
+            return globalSettings?.customImageStyles?.find(s => s.id === imageStyle.replace("custom_", ""))?.styleText || "Loading custom style...";
+        }
+        return imageStyles.find(s => s.id === imageStyle)?.description || "";
+    }, [imageStyle, globalSettings, imageStyles]);
+
+    const { data: previewImageUrl, isLoading: isPreviewLoading } = useQuery({
+        queryKey: ["style-preview", activeStyleText],
+        queryFn: async () => {
+            if (!activeStyleText || activeStyleText === "Loading custom style...") return null;
+            // Add a base subject to ensure the prompt gives us a character portrait for the aesthetic test
+            const basePrompt = `A stunning character portrait. ${activeStyleText}`;
+            const url = `https://gen.pollinations.ai/image/${encodeURIComponent(basePrompt)}?model=zimage&width=800&height=450`;
+            const res = await fetch(url, {
+                headers: {
+                    "Authorization": "Bearer sk_vLEHEXDOgyIoI49UR02sFkWo7FPlhqaU"
+                }
+            });
+            if (!res.ok) throw new Error("Failed to load preview");
+            const blob = await res.blob();
+            return URL.createObjectURL(blob);
+        },
+        staleTime: 1000 * 60 * 60 * 24, // Cache for 24 hours to save API calls
+        enabled: !!activeStyleText
     });
 
     const createCustomStyleMutation = useMutation({
@@ -281,18 +311,25 @@ export function RightPanel() {
                             </Select>
 
                             {/* Visual Preview Card */}
-                            <div className="mt-2 p-3 bg-muted/50 rounded-md border border-border/50 text-sm">
-                                <div className="flex items-center gap-2 mb-1">
+                            <div className="mt-2 p-3 bg-muted/50 rounded-md border border-border/50 text-sm overflow-hidden relative">
+                                <div className="flex items-center gap-2 mb-2 z-10 relative">
                                     <Palette className="w-4 h-4 text-primary" />
                                     <span className="font-semibold text-foreground">Style Preview</span>
                                 </div>
-                                <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                                    {imageStyle === "doodle"
-                                        ? "Pure 2D line-art storyboard style. Clean white background, thin black outlines, flat pastel fills, minimal facial features, and zero shading/3D realism."
-                                        : imageStyle.startsWith("custom_")
-                                            ? globalSettings?.customImageStyles?.find(s => s.id === imageStyle.replace("custom_", ""))?.styleText || "Loading custom style..."
-                                            : imageStyles.find(s => s.id === imageStyle)?.description || "Select a style to see its visual characteristics."
-                                    }
+                                <div className="w-full aspect-video bg-black/10 rounded-md mb-2 relative overflow-hidden flex items-center justify-center">
+                                    {isPreviewLoading ? (
+                                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                                            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                                            <span className="text-xs">Generating preview...</span>
+                                        </div>
+                                    ) : previewImageUrl ? (
+                                        <img src={previewImageUrl} alt="Style Preview" className="w-full h-full object-cover transition-opacity duration-300" />
+                                    ) : (
+                                        <span className="text-xs text-muted-foreground">No preview available</span>
+                                    )}
+                                </div>
+                                <p className="text-muted-foreground text-xs leading-relaxed whitespace-pre-wrap">
+                                    {activeStyleText}
                                 </p>
                             </div>
 
