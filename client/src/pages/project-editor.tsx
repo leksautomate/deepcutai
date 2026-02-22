@@ -245,6 +245,7 @@ export default function ProjectEditor() {
               <RenderPanel
                 manifest={manifest}
                 projectId={projectId}
+                projectTitle={project.title}
                 onRenderComplete={handleRenderComplete}
                 onGoToAssets={() => setActiveTab("assets")}
                 generationSettings={{

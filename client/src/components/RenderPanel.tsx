@@ -27,6 +27,7 @@ interface GenerationSettings {
 interface RenderPanelProps {
   manifest?: VideoManifest;
   projectId?: string;
+  projectTitle?: string;
   onRenderComplete?: (outputPath: string) => void;
   onGoToAssets?: () => void;
   generationSettings?: GenerationSettings;
@@ -39,7 +40,7 @@ const renderSteps = [
   { id: "export", name: "Exporting MP4", icon: HardDrive },
 ];
 
-export function RenderPanel({ manifest, projectId, onRenderComplete, onGoToAssets, generationSettings }: RenderPanelProps) {
+export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplete, onGoToAssets, generationSettings }: RenderPanelProps) {
   const [, setLocation] = useLocation();
   const [renderProgress, setRenderProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
@@ -276,7 +277,7 @@ export function RenderPanel({ manifest, projectId, onRenderComplete, onGoToAsset
               </div>
 
               <Button className="w-full" size="lg" asChild data-testid="button-download">
-                <a href={outputUrl} download>
+                <a href={outputUrl} download={`${(projectTitle || 'video').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`.replace(/_+/g, '_')}>
                   <Download className="w-5 h-5 mr-2" />
                   Download Video
                 </a>

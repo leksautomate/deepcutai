@@ -83,6 +83,7 @@ function RenderVideoDialog({ project }: { project: VideoProject }) {
         <RenderPanel
           manifest={project.manifest as VideoManifest}
           projectId={project.id}
+          projectTitle={project.title}
           onRenderComplete={handleRenderComplete}
         />
       </DialogContent>
@@ -252,7 +253,7 @@ function ProjectCard({ project, onDelete, onResume }: { project: VideoProject; o
                 asChild
                 data-testid={`button-download-${project.id}`}
               >
-                <a href={project.outputPath} download>
+                <a href={project.outputPath} download={`${project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`.replace(/_+/g, '_')}>
                   <Download className="w-4 h-4 mr-2" />
                   Download
                 </a>
