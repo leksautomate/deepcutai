@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import type { ReferenceAsset, TTSProvider } from "@shared/schema";
-import { v4 as uuidv4 } from "uuid";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Loader2 } from "lucide-react";
@@ -52,7 +51,7 @@ const CharacterVideoContext = createContext<CharacterVideoState | null>(null);
 export function CharacterVideoProvider({ children }: { children: ReactNode }) {
     const [characters, setCharacters] = useState<ReferenceAsset[]>([
         {
-            id: uuidv4(),
+            id: crypto.randomUUID(),
             name: "Actor 1",
             category: "SUBJECT",
             promptText: "",
@@ -97,7 +96,7 @@ export function CharacterVideoProvider({ children }: { children: ReactNode }) {
                 // If empty, maintain the default Actor 1
                 setCharacters([
                     {
-                        id: uuidv4(),
+                        id: crypto.randomUUID(),
                         name: "Actor 1",
                         category: "SUBJECT",
                         promptText: "",
@@ -109,7 +108,7 @@ export function CharacterVideoProvider({ children }: { children: ReactNode }) {
 
     const addCharacter = () => {
         const newChar: ReferenceAsset = {
-            id: uuidv4(),
+            id: crypto.randomUUID(),
             name: `Actor ${characters.length + 1}`,
             category: "SUBJECT",
             promptText: "",
