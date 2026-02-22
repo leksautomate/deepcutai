@@ -37,6 +37,8 @@ export function RightPanel() {
         setImageGenerator,
         imageStyle,
         setImageStyle,
+        resolution,
+        setResolution,
         characters,
         setGeneratedScript,
         setGeneratedScenes,
@@ -49,7 +51,7 @@ export function RightPanel() {
                 title: `Character Video ${Date.now().toString(36)}`,
                 voiceId: voiceId,
                 imageStyle: imageStyle,
-                resolution: "1080p",
+                resolution: resolution,
                 transition: "fade",
                 ttsProvider: ttsProvider,
                 imageGenerator: imageGenerator,
@@ -282,6 +284,22 @@ export function RightPanel() {
                             </Select>
                             <p className="text-xs text-muted-foreground mt-1">
                                 Choose the AI engine for the visual elements of your character scenes. Whisk allows conversational persistence, WaveSpeed is fastest.
+                            </p>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label>Resolution & Format</Label>
+                            <Select value={resolution} onValueChange={setResolution}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select resolution" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="1080p">Landscape (16:9)</SelectItem>
+                                    <SelectItem value="vertical">Portrait / Shorts (9:16)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Portrait is ideal for Shorts/TikTok. Landscape for traditional videos.
                             </p>
                         </div>
 

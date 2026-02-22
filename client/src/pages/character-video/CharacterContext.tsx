@@ -31,6 +31,8 @@ export interface CharacterVideoState {
     setImageGenerator: (generator: string) => void;
     imageStyle: string;
     setImageStyle: (style: string) => void;
+    resolution: string;
+    setResolution: (res: string) => void;
     syncToBackend?: () => void;
 
     // Generation Results
@@ -64,6 +66,7 @@ export function CharacterVideoProvider({ children }: { children: ReactNode }) {
     const [voiceId, setVoiceId] = useState("Alex");
     const [imageGenerator, setImageGenerator] = useState("wavespeed");
     const [imageStyle, setImageStyle] = useState("doodle");
+    const [resolution, setResolution] = useState("vertical");
 
     const [generatedScript, setGeneratedScript] = useState<string | null>(null);
     const [generatedScenes, setGeneratedScenes] = useState<any[] | null>(null);
@@ -162,6 +165,8 @@ export function CharacterVideoProvider({ children }: { children: ReactNode }) {
             setImageGenerator,
             imageStyle,
             setImageStyle,
+            resolution,
+            setResolution,
             syncToBackend,
             generatedScript,
             setGeneratedScript,
