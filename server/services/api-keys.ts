@@ -104,13 +104,3 @@ function convertWhiskCookie(cookie: string): string {
   }
 }
 
-/**
- * Checks if an API key is configured for a provider.
- */
-export async function hasApiKey(
-  provider: string,
-  userId?: string
-): Promise<boolean> {
-  const key = await getResolvedApiKey(provider, userId);
-  return !!key;
-}

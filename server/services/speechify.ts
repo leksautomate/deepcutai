@@ -203,17 +203,3 @@ function estimateAudioDuration(text: string): number {
   return Math.max(2, durationMinutes * 60);
 }
 
-/**
- * Retrieves a list of available Speechify voice names.
- * Falls back to a hardcoded list if API key is missing.
- * 
- * @returns Array of voice display names
- */
-export async function getAvailableVoices(): Promise<string[]> {
-  const apiKey = await getResolvedApiKey("speechify");
-  if (!apiKey) {
-    return ["george", "maisie", "henry", "carly", "oliver", "simone"];
-  }
-  const voices = await fetchAvailableVoices(apiKey);
-  return voices.map(v => v.display_name);
-}
