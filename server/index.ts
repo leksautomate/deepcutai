@@ -21,7 +21,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:"],
       mediaSrc: ["'self'", "blob:"],
-      connectSrc: ["'self'", "https://api.groq.com", "https://api.speechify.com", "https://pollinations.ai", "https://*.freepik.com"],
+      connectSrc: ["'self'", "https://api.groq.com", "https://api.speechify.com", "https://*.pollinations.ai", "https://*.freepik.com", "ws://localhost:24678"],
       // Do NOT add upgrade-insecure-requests - breaks HTTP deployments
       upgradeInsecureRequests: null,
     },

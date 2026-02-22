@@ -105,7 +105,7 @@ Return ONLY valid JSON with this exact structure:
   "scenes": [
     { 
       "narration": "Paragraph 1 text to be spoken",
-      "visual": "Detailed visual description of Paragraph 1"
+      "visual": "**Style:** [Describe the art style, medium, and color palette based on the VISUAL STYLE]\\n\\n**Subject:** [Describe the characters, action, camera angle, and positioning based on the SCENE TEXT]\\n\\n**Environment & Atmosphere:** [Describe the lighting, weather, background, and mood]"
     }
   ]
 }
@@ -442,7 +442,7 @@ Return your response as ONLY valid JSON:
   "scenes": [
     { 
        "narration": "The exact dialogue for this scene",
-       "visual": "Detailed visual description of what is visible in the scene"
+       "visual": "**Style:** [Describe the art style, medium, and color palette based on the VISUAL STYLE]\\n\\n**Subject:** [Describe the characters, action, camera angle, and positioning based on the SCENE TEXT]\\n\\n**Environment & Atmosphere:** [Describe the lighting, weather, background, and mood]"
     }
   ]
 }`;
