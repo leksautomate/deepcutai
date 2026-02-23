@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { Video, Download, Loader2, Check, FileVideo, Clock, HardDrive, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,21 +13,6 @@ import { apiRequest } from "@/lib/queryClient";
 import type { VideoManifest } from "@shared/schema";
 import { exportQualities } from "@shared/schema";
 
-interface GenerationSettings {
-  script: string;
-  voiceId: string;
-  imageStyle: string;
-  customStyleText?: string;
-  resolution: string;
-  imageGenerator?: string;
-  pollinationsModel?: string;
-  ttsProvider?: string;
-  sceneSettings?: {
-    firstPageFrequency: number;
-    restFrequency: number;
-    firstPageCharacterLimit: number;
-  };
-}
 
 interface RenderPanelProps {
   manifest?: VideoManifest;
@@ -36,7 +20,6 @@ interface RenderPanelProps {
   projectTitle?: string;
   onRenderComplete?: (outputPath: string) => void;
   onGoToAssets?: () => void;
-  generationSettings?: GenerationSettings;
 }
 
 const renderSteps = [
@@ -46,8 +29,7 @@ const renderSteps = [
   { id: "export", name: "Exporting MP4", icon: HardDrive },
 ];
 
-export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplete, onGoToAssets, generationSettings }: RenderPanelProps) {
-  const [, setLocation] = useLocation();
+export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplete, onGoToAssets }: RenderPanelProps) {
   const [renderProgress, setRenderProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
@@ -56,39 +38,6 @@ export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplet
 
   const selectedQuality = exportQualities.find(q => q.id === exportQuality) || exportQualities[1];
 
-  const backgroundMutation = useMutation({
-    mutationFn: async () => {
-      if (!generationSettings) throw new Error("No generation settings");
-      const response = await apiRequest("POST", "/api/generate-background", {
-        script: generationSettings.script,
-        title: `Video ${Date.now().toString(36)}`,
-        voiceId: generationSettings.voiceId,
-        imageStyle: generationSettings.imageStyle,
-        customStyleText: generationSettings.imageStyle === "custom" ? generationSettings.customStyleText : undefined,
-        resolution: generationSettings.resolution,
-        transition: "fade",
-        imageGenerator: generationSettings.imageGenerator || undefined,
-        pollinationsModel: generationSettings.pollinationsModel || undefined,
-        ttsProvider: generationSettings.ttsProvider || "inworld",
-        sceneSettings: generationSettings.sceneSettings,
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Video Generation Started",
-        description: "Your video is being generated in the background. Track progress in My Videos.",
-      });
-      setLocation("/my-videos");
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to Start Generation",
-        description: error.message || "Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
 
   const renderMutation = useMutation({
     mutationFn: async () => {
@@ -142,24 +91,9 @@ export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplet
             Generate your video with voice narration and images. Configure settings in the Settings tab first.
           </p>
           <div className="flex flex-col items-center gap-3">
-            {generationSettings && (
-              <Button
-                size="lg"
-                onClick={() => backgroundMutation.mutate()}
-                disabled={backgroundMutation.isPending}
-                data-testid="button-generate-background"
-              >
-                {backgroundMutation.isPending ? (
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                ) : (
-                  <Zap className="w-5 h-5 mr-2" />
-                )}
-                {backgroundMutation.isPending ? "Starting..." : "Generate in Background"}
-              </Button>
-            )}
             {onGoToAssets && (
               <Button variant="outline" size="sm" onClick={onGoToAssets} data-testid="button-go-to-assets">
-                Configure Settings
+                Go Back to Settings
               </Button>
             )}
           </div>
@@ -307,6 +241,21 @@ export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplet
                 <Video className="w-5 h-5 mr-2" />
                 Start Rendering
               </Button>
+
+              {projectId && (
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  size="lg"
+                  asChild
+                  data-testid="button-export-zip"
+                >
+                  <a href={`/api/projects/${projectId}/export-assets`} download={`${(projectTitle || 'video').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_assets.zip`}>
+                    <HardDrive className="w-5 h-5 mr-2" />
+                    Export Assets (ZIP)
+                  </a>
+                </Button>
+              )}
             </div>
           )}
         </CardContent>

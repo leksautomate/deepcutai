@@ -139,6 +139,7 @@ export async function registerRoutes(
   // ==========================================
   app.get("/api/projects", requireAuth, projectController.getAllProjects.bind(projectController));
   app.get("/api/projects/:id", requireAuth, projectController.getProject.bind(projectController));
+  app.get("/api/projects/:id/export-assets", requireAuth, projectController.exportAssets.bind(projectController));
   app.delete("/api/projects/:id", requireAuth, projectController.deleteProject.bind(projectController));
   app.post("/api/projects/import", requireAuth, projectController.importProject.bind(projectController));
 

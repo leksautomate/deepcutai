@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
+import archiver from 'archiver';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { BaseController } from './BaseController';
@@ -30,7 +31,7 @@ const ASSETS_DIR = path.join(process.cwd(), "public", "assets");
 
 // Helper to generate title from script if not provided
 function generateTitleFromScript(script: string, maxLength: number = 50): string {
-    const words = script.trim().split(/\s+/).slice(0, 8).join(' ');
+    const words = script.trim().split(/\s+/).slice(0, 5).join(' ');
     const sanitized = words.replace(/[^\w\s-]/g, '').trim();
     return sanitized.length > maxLength ? sanitized.slice(0, maxLength).trim() : sanitized;
 }
@@ -60,6 +61,7 @@ const generateAssetsSchema = z.object({
         visual: z.string(),
     })).optional(),
     customCharacters: z.array(z.any()).optional(),
+    generateAssetsOnly: z.boolean().optional(),
 });
 
 const renderVideoSchema = z.object({
@@ -120,7 +122,8 @@ export class ProjectController extends BaseController {
             return res.json({
                 success: true,
                 message: "Background generation started",
-                projectId: project.id
+                projectId: project.id,
+                title: project.title,
             });
         } catch (error) {
             return this.handleError(error, res, 'ProjectController.generateAssetsBackground');
@@ -128,7 +131,7 @@ export class ProjectController extends BaseController {
     }
 
     public async runBackgroundGeneration(projectId: string, body: any, userId: string, startFromScene: number = 0) {
-        let { script, voiceId, imageStyle, customStyleText, resolution, motionEffect, imageGenerator, pollinationsModel, ttsProvider, sceneSettings } = body;
+        let { script, voiceId, imageStyle, customStyleText, resolution, motionEffect, imageGenerator, pollinationsModel, ttsProvider, sceneSettings, generateAssetsOnly } = body;
 
         imageGenerator = imageGenerator || getAppSettings().defaultImageGenerator || "wavespeed";
         pollinationsModel = pollinationsModel || getAppSettings().defaultPollinationsModel || "flux";
@@ -296,76 +299,86 @@ export class ProjectController extends BaseController {
 
                 let imageResult: { success: boolean; error?: string } | null = null;
 
-                if (selectedGenerator === "pollinations") {
-                    const { generateImageWithPollinations } = await import("../services/image-generators");
-                    try {
-                        const apiKey = await getResolvedApiKey("pollinations", userId);
-                        const result = await generateImageWithPollinations(
-                            imagePrompt,
-                            apiKey,
+                try {
+                    if (selectedGenerator === "pollinations") {
+                        const { generateImageWithPollinations } = await import("../services/image-generators");
+                        try {
+                            const apiKey = await getResolvedApiKey("pollinations", userId);
+                            const result = await generateImageWithPollinations(
+                                imagePrompt,
+                                apiKey,
+                                width,
+                                height,
+                                pollinationsModel
+                            );
+                            fs.writeFileSync(imagePath, result.imageBuffer);
+                            imageResult = { success: true };
+                        } catch (error) {
+                            const message = error instanceof Error ? error.message : String(error);
+                            throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
+                        }
+                    } else if (selectedGenerator === "wavespeed" || selectedGenerator === "runpod") {
+                        const { generateImageWithWaveSpeed, generateImageWithRunPod } = await import("../services/image-generators");
+                        try {
+                            const apiKey = await getResolvedApiKey(selectedGenerator, userId);
+                            if (!apiKey) {
+                                throw new Error(`${selectedGenerator} API key not configured. Please add your API key in Settings.`);
+                            }
+                            const imageUrl = selectedGenerator === "wavespeed"
+                                ? await generateImageWithWaveSpeed(imagePrompt, apiKey, width, height, lockedSeed)
+                                : await generateImageWithRunPod(imagePrompt, apiKey, width, height, lockedSeed);
+
+                            const imageResponse = await fetch(imageUrl);
+                            if (!imageResponse.ok) throw new Error(`Failed to download image from ${imageUrl}`);
+                            const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+                            fs.writeFileSync(imagePath, imageBuffer);
+                            imageResult = { success: true };
+                        } catch (error) {
+                            const message = error instanceof Error ? error.message : String(error);
+                            throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
+                        }
+                    } else if (selectedGenerator === "whisk") {
+                        const { generateImageWithWhisk } = await import("../services/image-generators");
+                        try {
+                            const cookie = await getResolvedApiKey("whisk", userId);
+                            if (!cookie) {
+                                throw new Error("Google Whisk cookie not configured. Please add your Google cookie in Settings.");
+                            }
+                            const imageUrl = await generateImageWithWhisk(imagePrompt, cookie, width, height);
+
+                            const imageResponse = await fetch(imageUrl);
+                            if (!imageResponse.ok) throw new Error(`Failed to download image from Whisk`);
+                            const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+                            fs.writeFileSync(imagePath, imageBuffer);
+                            imageResult = { success: true };
+                        } catch (error) {
+                            const message = error instanceof Error ? error.message : String(error);
+                            throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
+                        }
+                    } else {
+                        // Default to seedream
+                        const apiKey = await getResolvedApiKey("seedream", userId);
+                        const seedreamResult = await generateImageWithSeestream({
+                            prompt: imagePrompt,
+                            outputPath: imagePath,
                             width,
                             height,
-                            pollinationsModel
-                        );
-                        fs.writeFileSync(imagePath, result.imageBuffer);
-                        imageResult = { success: true };
-                    } catch (error) {
-                        const message = error instanceof Error ? error.message : String(error);
-                        throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
-                    }
-                } else if (selectedGenerator === "wavespeed" || selectedGenerator === "runpod") {
-                    const { generateImageWithWaveSpeed, generateImageWithRunPod } = await import("../services/image-generators");
-                    try {
-                        const apiKey = await getResolvedApiKey(selectedGenerator, userId);
-                        if (!apiKey) {
-                            throw new Error(`${selectedGenerator} API key not configured. Please add your API key in Settings.`);
+                            style: imageStyle || "cinematic",
+                            apiKey: apiKey || undefined
+                        });
+                        if (!seedreamResult.success) {
+                            throw new Error(`Failed to generate image for scene ${i + 1}: ${seedreamResult.error}`);
                         }
-                        const imageUrl = selectedGenerator === "wavespeed"
-                            ? await generateImageWithWaveSpeed(imagePrompt, apiKey, width, height, lockedSeed)
-                            : await generateImageWithRunPod(imagePrompt, apiKey, width, height, lockedSeed);
-
-                        const imageResponse = await fetch(imageUrl);
-                        if (!imageResponse.ok) throw new Error(`Failed to download image from ${imageUrl}`);
-                        const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-                        fs.writeFileSync(imagePath, imageBuffer);
                         imageResult = { success: true };
-                    } catch (error) {
-                        const message = error instanceof Error ? error.message : String(error);
-                        throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
                     }
-                } else if (selectedGenerator === "whisk") {
-                    const { generateImageWithWhisk } = await import("../services/image-generators");
-                    try {
-                        const cookie = await getResolvedApiKey("whisk", userId);
-                        if (!cookie) {
-                            throw new Error("Google Whisk cookie not configured. Please add your Google cookie in Settings.");
-                        }
-                        const imageUrl = await generateImageWithWhisk(imagePrompt, cookie, width, height);
-
-                        const imageResponse = await fetch(imageUrl);
-                        if (!imageResponse.ok) throw new Error(`Failed to download image from Whisk`);
-                        const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-                        fs.writeFileSync(imagePath, imageBuffer);
-                        imageResult = { success: true };
-                    } catch (error) {
-                        const message = error instanceof Error ? error.message : String(error);
-                        throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
+                } catch (imgError) {
+                    const message = imgError instanceof Error ? imgError.message : String(imgError);
+                    if (message.includes("401") || message.toLowerCase().includes("unauthorized") || message.toLowerCase().includes("cookie")) {
+                        // Critical Auth Error: abort entire generation
+                        throw imgError;
                     }
-                } else {
-                    // Default to seedream
-                    const apiKey = await getResolvedApiKey("seedream", userId);
-                    const seedreamResult = await generateImageWithSeestream({
-                        prompt: imagePrompt,
-                        outputPath: imagePath,
-                        width,
-                        height,
-                        style: imageStyle || "cinematic",
-                        apiKey: apiKey || undefined
-                    });
-                    if (!seedreamResult.success) {
-                        throw new Error(`Failed to generate image for scene ${i + 1}: ${seedreamResult.error}`);
-                    }
-                    imageResult = { success: true };
+                    // Non-critical error: log it and allow generation to continue using placeholders
+                    logError("BG_GEN", `Image generation failed for scene ${i + 1}: ${message}`, imgError as Error, { projectId });
                 }
 
                 generatedScenes.push({
@@ -399,6 +412,17 @@ export class ProjectController extends BaseController {
         };
         const manifestPath = path.join(projectDir, "manifest.json");
         fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+        if (generateAssetsOnly) {
+            await storage.updateVideoProject(projectId, {
+                manifest,
+                status: "ready",
+                progress: 100,
+                progressMessage: "Assets generated. Ready for review.",
+            });
+            logInfo("BG_GEN", `Asset generation completed successfully (rendering skipped)`, { projectId });
+            return;
+        }
 
         // 5. Render video
         await storage.updateVideoProject(projectId, {
@@ -1106,6 +1130,81 @@ export class ProjectController extends BaseController {
             return res.json(chapters);
         } catch (error) {
             return this.handleError(error, res, 'ProjectController.getChapters');
+        }
+    }
+
+    async exportAssets(req: Request, res: Response) {
+        try {
+            const project = await storage.getVideoProject(req.params.id);
+            if (!project) {
+                return res.status(404).json({ error: "Project not found" });
+            }
+
+            const manifest = project.manifest as VideoManifest | null;
+            if (!manifest || !manifest.scenes || manifest.scenes.length === 0) {
+                return res.status(400).json({ error: "Project has no manifest or scenes" });
+            }
+
+            const projectDir = path.join(ASSETS_DIR, req.params.id);
+
+            // Set up response headers for ZIP file download
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename="${project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_assets.zip"`);
+
+            const archive = archiver('zip', {
+                zlib: { level: 9 } // Sets the compression level.
+            });
+
+            // Good practice to catch warnings (ie stat failures and other non-blocking errors)
+            archive.on('warning', function (err) {
+                if (err.code === 'ENOENT') {
+                    console.warn(`[ZIP] Warning: ${err.message}`);
+                } else {
+                    throw err;
+                }
+            });
+
+            // Good practice to catch this error explicitly
+            archive.on('error', function (err) {
+                throw err;
+            });
+
+            // Pipe archive data to the response
+            archive.pipe(res as any);
+
+            // Add files to the archive sequentially based on scene order
+            for (let i = 0; i < manifest.scenes.length; i++) {
+                const scene = manifest.scenes[i];
+                const index = i + 1; // 1-based index for CapCut
+
+                if (scene.imageFile) {
+                    // Extract the filename from the URL, or construct the local path
+                    // the URL is typically /assets/projectId/filename.png
+                    const filename = scene.imageFile.split('/').pop();
+                    if (filename) {
+                        const localImagePath = path.join(projectDir, filename);
+                        if (fs.existsSync(localImagePath)) {
+                            archive.file(localImagePath, { name: `${index}.png` });
+                        }
+                    }
+                }
+
+                if (scene.audioFile) {
+                    const filename = scene.audioFile.split('/').pop();
+                    if (filename) {
+                        const localAudioPath = path.join(projectDir, filename);
+                        if (fs.existsSync(localAudioPath)) {
+                            archive.file(localAudioPath, { name: `${index}.mp3` });
+                        }
+                    }
+                }
+            }
+
+            // Finalize the archive (this tells archiver that all files have been appended)
+            await archive.finalize();
+
+        } catch (error) {
+            return this.handleError(error, res, 'ProjectController.exportAssets');
         }
     }
 }

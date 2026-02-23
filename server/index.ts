@@ -148,7 +148,7 @@ app.use("/tts-output", express.static(path.join(process.cwd(), "public", "tts-ou
 
   // Serve the app on the port specified in the environment variable PORT
   // Default to 5000 if not specified.
-  const port = parseInt(process.env.PORT || "5000", 10);
+  const port = parseInt(process.env.PORT || "3000", 10);
   log(`Attempting to serve on port ${port}`);
   httpServer.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
