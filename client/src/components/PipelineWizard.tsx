@@ -8,7 +8,7 @@ import { RenderPanel } from "./RenderPanel";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { VideoProject, VideoManifest, GenerationProgress } from "@shared/schema";
+import type { VideoProject, VideoManifest } from "@shared/schema";
 
 const steps = [
   { id: 1, name: "Script", icon: FileText, description: "Create or generate your script" },

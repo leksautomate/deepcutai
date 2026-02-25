@@ -248,14 +248,6 @@ export default function ProjectEditor() {
                 projectTitle={project.title}
                 onRenderComplete={handleRenderComplete}
                 onGoToAssets={() => setActiveTab("assets")}
-                generationSettings={{
-                  script: editedScript || project.script,
-                  voiceId,
-                  imageStyle,
-                  customStyleText,
-                  resolution,
-                  imageGenerator,
-                }}
               />
             </TabsContent>
           </Tabs>

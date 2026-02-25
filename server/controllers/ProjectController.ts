@@ -223,8 +223,8 @@ export class ProjectController extends BaseController {
         const wRatio = width / height;
         const whiskCharAspectRatio: "IMAGE_ASPECT_RATIO_SQUARE" | "IMAGE_ASPECT_RATIO_PORTRAIT" | "IMAGE_ASPECT_RATIO_LANDSCAPE" =
             wRatio < 0.9 ? "IMAGE_ASPECT_RATIO_PORTRAIT" :
-            wRatio > 1.1 ? "IMAGE_ASPECT_RATIO_LANDSCAPE" :
-            "IMAGE_ASPECT_RATIO_SQUARE";
+                wRatio > 1.1 ? "IMAGE_ASPECT_RATIO_LANDSCAPE" :
+                    "IMAGE_ASPECT_RATIO_SQUARE";
 
         let whiskCharacterSession: import("../services/image-generators").WhiskCharacterSession | null = null;
         let whiskCharacterBase64: string | null = null;
@@ -1259,6 +1259,7 @@ export class ProjectController extends BaseController {
 
             // Finalize the archive (this tells archiver that all files have been appended)
             await archive.finalize();
+            return;
 
         } catch (error) {
             return this.handleError(error, res, 'ProjectController.exportAssets');
