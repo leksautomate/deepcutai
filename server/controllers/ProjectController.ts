@@ -538,8 +538,7 @@ export class ProjectController extends BaseController {
 
     async getAllProjects(_req: Request, res: Response) {
         try {
-            // TODO: Filter by userId if we want multi-user isolation
-            const projects = await storage.getAllVideoProjects();
+            const projects = await storage.getAllVideoProjectsSummary();
             return res.json(projects);
         } catch (error) {
             return this.handleError(error, res, 'ProjectController.getAllProjects');
@@ -1069,6 +1068,124 @@ export class ProjectController extends BaseController {
             });
         } catch (error) {
             return this.handleError(error, res, 'ProjectController.renderVideo');
+        }
+    }
+
+    /**
+     * Render video in background — responds immediately, renders asynchronously
+     */
+    async renderVideoBackground(req: Request, res: Response) {
+        try {
+            const { manifest, projectId, exportQuality } = this.validateBody(renderVideoSchema, req.body);
+
+            if (!projectId) {
+                return res.status(400).json({ error: "projectId is required for background rendering" });
+            }
+
+            const qualitySettings: Record<string, { width: number; height: number; bitrate: string }> = {
+                "720p": { width: 1280, height: 720, bitrate: "4M" },
+                "1080p": { width: 1920, height: 1080, bitrate: "8M" },
+                "4k": { width: 3840, height: 2160, bitrate: "20M" },
+            };
+            const resolvedQuality = exportQuality && qualitySettings[exportQuality] ? qualitySettings[exportQuality] : undefined;
+
+            const outputFilename = `video-${projectId}.mp4`;
+            const outputPath = `/assets/${projectId}/${outputFilename}`;
+
+            const outputDir = path.join(ASSETS_DIR, projectId);
+            if (!fs.existsSync(outputDir)) {
+                fs.mkdirSync(outputDir, { recursive: true });
+            }
+
+            // Set status to "rendering" immediately
+            await storage.updateVideoProject(projectId, {
+                status: "rendering",
+                progress: 5,
+                progressMessage: "Starting video render...",
+            });
+
+            this.logInfo("RENDER", "Starting background video render", { projectId });
+
+            // Respond immediately
+            res.json({
+                success: true,
+                projectId,
+                message: "Rendering started in background.",
+            });
+
+            // Fire-and-forget: render in background
+            (async () => {
+                try {
+                    await storage.updateVideoProject(projectId, {
+                        progress: 20,
+                        progressMessage: "Processing scenes with FFmpeg...",
+                    });
+
+                    const renderResult = await renderVideo({
+                        manifest: {
+                            ...manifest,
+                            fps: manifest.fps || 30,
+                            width: manifest.width || 1280,
+                            height: manifest.height || 720,
+                            transitionDuration: manifest.transitionDuration || 0.5,
+                        } as VideoManifest,
+                        outputPath,
+                        projectDir: outputDir,
+                        exportQuality: resolvedQuality,
+                    });
+
+                    if (!renderResult.success) {
+                        logError("RENDER", `Background render failed: ${renderResult.error}`, undefined, { projectId });
+                        await storage.updateVideoProject(projectId, {
+                            status: "error",
+                            errorMessage: `Render failed: ${renderResult.error}`,
+                            progress: 0,
+                            progressMessage: null as any,
+                        });
+                        return;
+                    }
+
+                    // Generate thumbnail
+                    await storage.updateVideoProject(projectId, {
+                        progress: 90,
+                        progressMessage: "Generating thumbnail...",
+                    });
+
+                    let thumbnailPath: string | null = null;
+                    try {
+                        const thumbnailOutputPath = `/assets/${projectId}/thumbnail.jpg`;
+                        const thumbResult = await generateThumbnail(outputPath, thumbnailOutputPath, 1);
+                        if (thumbResult.success && thumbResult.thumbnailPath) {
+                            thumbnailPath = thumbResult.thumbnailPath;
+                        }
+                    } catch (err) {
+                        logError("RENDER", "Thumbnail generation failed", err as Error, { projectId });
+                    }
+
+                    await storage.updateVideoProject(projectId, {
+                        outputPath,
+                        thumbnailPath,
+                        status: "ready",
+                        progress: 100,
+                        progressMessage: "Render complete!",
+                    });
+
+                    logInfo("RENDER", `Background render completed`, { projectId, outputPath });
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    logError("RENDER", `Background render crashed: ${message}`, error as Error, { projectId });
+                    await storage.updateVideoProject(projectId, {
+                        status: "error",
+                        errorMessage: `Render crashed: ${message}`,
+                        progress: 0,
+                        progressMessage: null as any,
+                    }).catch(() => { });
+                }
+            })();
+
+            return;
+        } catch (error) {
+            return this.handleError(error, res, 'ProjectController.renderVideoBackground');
         }
     }
 

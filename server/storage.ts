@@ -18,6 +18,7 @@ export interface IStorage {
 
   getVideoProject(id: string): Promise<VideoProject | undefined>;
   getAllVideoProjects(): Promise<VideoProject[]>;
+  getAllVideoProjectsSummary(): Promise<Omit<VideoProject, 'manifest' | 'script' | 'chapters'>[]>;
   createVideoProject(project: InsertVideoProject): Promise<VideoProject>;
   updateVideoProject(id: string, updates: Partial<InsertVideoProject>): Promise<VideoProject | undefined>;
   deleteVideoProject(id: string): Promise<boolean>;
@@ -94,6 +95,30 @@ export class DatabaseStorage implements IStorage {
 
   async getAllVideoProjects(): Promise<VideoProject[]> {
     return await db.select().from(videoProjects).orderBy(sql`${videoProjects.createdAt} DESC`);
+  }
+
+  async getAllVideoProjectsSummary(): Promise<Omit<VideoProject, 'manifest' | 'script' | 'chapters'>[]> {
+    return await db.select({
+      id: videoProjects.id,
+      title: videoProjects.title,
+      status: videoProjects.status,
+      voiceId: videoProjects.voiceId,
+      imageStyle: videoProjects.imageStyle,
+      customStyleText: videoProjects.customStyleText,
+      imageGenerator: videoProjects.imageGenerator,
+      pollinationsModel: videoProjects.pollinationsModel,
+      videoGenerator: videoProjects.videoGenerator,
+      ttsProvider: videoProjects.ttsProvider,
+      resolution: videoProjects.resolution,
+      outputPath: videoProjects.outputPath,
+      thumbnailPath: videoProjects.thumbnailPath,
+      progress: videoProjects.progress,
+      progressMessage: videoProjects.progressMessage,
+      errorMessage: videoProjects.errorMessage,
+      totalDuration: videoProjects.totalDuration,
+      createdAt: videoProjects.createdAt,
+      updatedAt: videoProjects.updatedAt,
+    }).from(videoProjects).orderBy(sql`${videoProjects.createdAt} DESC`);
   }
 
   async createVideoProject(project: InsertVideoProject): Promise<VideoProject> {
@@ -304,6 +329,10 @@ export class MemStorage implements IStorage {
 
   async getAllVideoProjects(): Promise<VideoProject[]> {
     return Array.from(this.videoProjects.values());
+  }
+
+  async getAllVideoProjectsSummary(): Promise<Omit<VideoProject, 'manifest' | 'script' | 'chapters'>[]> {
+    return Array.from(this.videoProjects.values()).map(({ manifest, script, chapters, ...rest }) => rest);
   }
 
   async createVideoProject(project: InsertVideoProject): Promise<VideoProject> {

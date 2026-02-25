@@ -23,6 +23,8 @@ function getStatusConfig(status: string) {
       return { label: "Ready", variant: "default" as const, icon: CheckCircle };
     case "generating":
       return { label: "Generating", variant: "secondary" as const, icon: Loader2 };
+    case "rendering":
+      return { label: "Rendering", variant: "secondary" as const, icon: Loader2 };
     case "queued":
       return { label: "Queued", variant: "outline" as const, icon: Clock };
     case "error":
@@ -186,7 +188,7 @@ function ThumbnailDesigner({ project, onGenerated }: { project: VideoProject; on
 function ProjectCard({ project, onDelete, onResume }: { project: VideoProject; onDelete: (id: string) => void; onResume: (id: string) => void }) {
   const statusConfig = getStatusConfig(project.status);
   const StatusIcon = statusConfig.icon;
-  const isGenerating = project.status === "generating" || project.status === "queued";
+  const isGenerating = project.status === "generating" || project.status === "queued" || project.status === "rendering";
 
   return (
     <Card className="group relative overflow-hidden border border-white/5 bg-black/40 backdrop-blur-xl hover:bg-black/60 transition-all duration-500 shadow-2xl hover:shadow-primary/20 hover:-translate-y-1" data-testid={`card-project-${project.id}`}>
@@ -295,7 +297,7 @@ export default function MyVideos() {
     queryKey: ["/api/projects"],
     refetchInterval: (query) => {
       const data = query.state.data as VideoProject[] | undefined;
-      const hasGenerating = data?.some(p => p.status === "generating" || p.status === "queued");
+      const hasGenerating = data?.some(p => p.status === "generating" || p.status === "queued" || p.status === "rendering");
       return hasGenerating ? 3000 : false;
     },
   });
@@ -332,7 +334,7 @@ export default function MyVideos() {
     return dateB - dateA;
   });
 
-  const generatingCount = projects.filter(p => p.status === "generating" || p.status === "queued").length;
+  const generatingCount = projects.filter(p => p.status === "generating" || p.status === "queued" || p.status === "rendering").length;
   const readyCount = projects.filter(p => p.status === "ready").length;
 
   if (isLoading) {

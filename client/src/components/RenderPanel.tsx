@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Video, Download, Loader2, Check, FileVideo, Clock, HardDrive, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { VideoManifest } from "@shared/schema";
 import { exportQualities } from "@shared/schema";
@@ -34,46 +34,81 @@ export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplet
   const [currentStep, setCurrentStep] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [exportQuality, setExportQuality] = useState<string>("1080p");
+  const [isRendering, setIsRendering] = useState(false);
   const { toast } = useToast();
 
   const selectedQuality = exportQualities.find(q => q.id === exportQuality) || exportQualities[1];
 
+  // Poll project status while rendering
+  const { data: projectData } = useQuery({
+    queryKey: ["/api/projects", projectId],
+    enabled: isRendering && !!projectId,
+    refetchInterval: isRendering ? 3000 : false,
+    staleTime: 0,
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch project status");
+      return res.json();
+    },
+  });
+
+  // React to project status changes from polling
+  useEffect(() => {
+    if (!projectData || !isRendering) return;
+
+    const { status, progress, progressMessage, outputPath } = projectData;
+
+    if (status === "rendering") {
+      setRenderProgress(progress || 20);
+      if (progress && progress < 30) setCurrentStep("prepare");
+      else if (progress && progress < 70) setCurrentStep("video");
+      else if (progress && progress < 95) setCurrentStep("export");
+    } else if (status === "ready" && outputPath) {
+      setIsRendering(false);
+      setRenderProgress(100);
+      setCurrentStep(null);
+      setOutputUrl(outputPath);
+      onRenderComplete?.(outputPath);
+      toast({
+        title: "Video Rendered",
+        description: "Your video is ready to download!",
+      });
+    } else if (status === "error") {
+      setIsRendering(false);
+      setRenderProgress(0);
+      setCurrentStep(null);
+      toast({
+        title: "Render Failed",
+        description: progressMessage || projectData.errorMessage || "Rendering failed. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [projectData, isRendering]);
 
   const renderMutation = useMutation({
     mutationFn: async () => {
       if (!manifest) throw new Error("No manifest available");
+      if (!projectId) throw new Error("No project ID available");
 
       setCurrentStep("prepare");
-      setRenderProgress(10);
+      setRenderProgress(5);
+      setIsRendering(true);
 
-      const manifestWithCaptions = {
-        ...manifest,
-      };
-
-      const response = await apiRequest("POST", "/api/render-video", {
-        manifest: manifestWithCaptions,
+      const response = await apiRequest("POST", "/api/render-video-background", {
+        manifest: { ...manifest },
         projectId,
         exportQuality,
       });
 
       return response.json();
     },
-    onSuccess: (data) => {
-      setRenderProgress(100);
-      setCurrentStep(null);
-      setOutputUrl(data.outputUrl);
-      onRenderComplete?.(data.outputUrl);
-      toast({
-        title: "Video Rendered",
-        description: "Your video is ready to download!",
-      });
-    },
     onError: (error: Error) => {
       setCurrentStep(null);
       setRenderProgress(0);
+      setIsRendering(false);
       toast({
         title: "Render Failed",
-        description: error.message || "Failed to render video. Please try again.",
+        description: error.message || "Failed to start rendering. Please try again.",
         variant: "destructive",
       });
     },
@@ -124,7 +159,7 @@ export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplet
               <Select
                 value={exportQuality}
                 onValueChange={setExportQuality}
-                disabled={renderMutation.isPending}
+                disabled={isRendering || renderMutation.isPending}
               >
                 <SelectTrigger className="mt-1.5" data-testid="select-export-quality">
                   <SelectValue />
@@ -159,7 +194,7 @@ export function RenderPanel({ manifest, projectId, projectTitle, onRenderComplet
             </div>
           </div>
 
-          {renderMutation.isPending ? (
+          {(isRendering || renderMutation.isPending) ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Rendering...</span>

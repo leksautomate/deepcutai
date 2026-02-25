@@ -14,7 +14,7 @@ export type TransitionEffect = typeof transitionEffects[number];
 // Removed caption logic
 
 // Video status
-export const videoStatuses = ["draft", "generating", "ready", "error"] as const;
+export const videoStatuses = ["draft", "generating", "rendering", "ready", "error"] as const;
 export type VideoStatus = typeof videoStatuses[number];
 
 // Word alignment for caption sync
