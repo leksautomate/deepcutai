@@ -249,36 +249,12 @@ async function removeSilenceFromAudio(
 }
 
 /**
- * Concatenates two audio files with crossfade using FFmpeg.
- */
-async function crossfadeTwoFiles(
-  input1: string,
-  input2: string,
-  outputPath: string,
-  crossfadeDuration: number = 0.2
-): Promise<{ success: boolean; error?: string }> {
-  // Use acrossfade filter for smooth transition
-  const args = [
-    "-y",
-    "-i", input1,
-    "-i", input2,
-    "-filter_complex", `[0:a][1:a]acrossfade=d=${crossfadeDuration}:c1=tri:c2=tri`,
-    "-c:a", "libmp3lame",
-    "-b:a", "192k",
-    outputPath,
-  ];
-
-  return runFFmpeg(args);
-}
-
-/**
- * Concatenates multiple audio files with crossfade between each pair.
- * Uses iterative merging for 3+ files.
+ * Concatenates multiple audio files using FFmpeg concat demuxer.
+ * No crossfade — speech chunks must be joined cleanly without overlap.
  */
 async function concatenateAudioFiles(
   inputPaths: string[],
   outputPath: string,
-  crossfadeDuration: number = 0.2
 ): Promise<{ success: boolean; error?: string }> {
   if (inputPaths.length === 0) {
     return { success: false, error: "No input files provided" };
@@ -296,42 +272,26 @@ async function concatenateAudioFiles(
     return runFFmpeg(args);
   }
 
-  if (inputPaths.length === 2) {
-    // Direct crossfade for 2 files
-    return crossfadeTwoFiles(inputPaths[0], inputPaths[1], outputPath, crossfadeDuration);
-  }
+  // Write a concat list and use the concat demuxer — no crossfade overlap for speech
+  const concatListPath = outputPath + ".txt";
+  const concatListContent = inputPaths
+    .map(p => `file '${p.replace(/\\/g, "/")}'`)
+    .join("\n");
+  fs.writeFileSync(concatListPath, concatListContent);
 
-  // For 3+ files, iteratively merge pairs
-  const outputDir = path.dirname(outputPath);
-  let currentMerged = inputPaths[0];
-  let tempCounter = 0;
+  const args = [
+    "-y",
+    "-f", "concat",
+    "-safe", "0",
+    "-i", concatListPath,
+    "-c:a", "libmp3lame",
+    "-b:a", "192k",
+    outputPath,
+  ];
 
-  for (let i = 1; i < inputPaths.length; i++) {
-    const isLast = i === inputPaths.length - 1;
-    const nextOutput = isLast
-      ? outputPath
-      : path.join(outputDir, `merge-temp-${tempCounter++}-${nanoid(4)}.mp3`);
-
-    const result = await crossfadeTwoFiles(
-      currentMerged,
-      inputPaths[i],
-      nextOutput,
-      crossfadeDuration
-    );
-
-    if (!result.success) {
-      return result;
-    }
-
-    // Clean up previous temp file (if not original chunk)
-    if (!inputPaths.includes(currentMerged) && fs.existsSync(currentMerged)) {
-      fs.unlinkSync(currentMerged);
-    }
-
-    currentMerged = nextOutput;
-  }
-
-  return { success: true };
+  const result = await runFFmpeg(args);
+  if (fs.existsSync(concatListPath)) fs.unlinkSync(concatListPath);
+  return result;
 }
 
 /**

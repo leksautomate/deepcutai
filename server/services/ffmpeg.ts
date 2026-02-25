@@ -268,7 +268,6 @@ async function createSceneVideo(
       "-i", sceneVideoPath,
       "-i", audioFile,
       "-c:v", "copy",
-      "-af", `afade=t=in:ss=0:d=0.05,afade=t=out:st=${Math.max(0, audioDuration - 0.1)}:d=0.1`,
       "-c:a", "aac",
       "-b:a", "256k",
       "-map", "0:v:0",
