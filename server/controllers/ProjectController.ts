@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { BaseController } from './BaseController';
 import { storage } from '../storage';
-import { logError, logInfo } from '../services/logger';
+import { logError, logInfo, logWarning } from '../services/logger';
 import { generateScript, wizardGenerateAngles, wizardGenerateIdeas, wizardGenerateHook, wizardGenerateFullScript } from '../services/gemini';
 import { generateScriptWithGroq, wizardGenerateAnglesWithGroq, wizardGenerateIdeasWithGroq, wizardGenerateHookWithGroq, wizardGenerateFullScriptWithGroq } from '../services/groq';
 import { getAppSettings } from '../services/settings';
@@ -219,6 +219,45 @@ export class ProjectController extends BaseController {
         // Generate a locked seed for character consistency across WaveSpeed frames
         const lockedSeed = Math.floor(Math.random() * 1000000);
 
+        // Whisk character consistency: compute aspect ratio string and load reference image once
+        const wRatio = width / height;
+        const whiskCharAspectRatio: "IMAGE_ASPECT_RATIO_SQUARE" | "IMAGE_ASPECT_RATIO_PORTRAIT" | "IMAGE_ASPECT_RATIO_LANDSCAPE" =
+            wRatio < 0.9 ? "IMAGE_ASPECT_RATIO_PORTRAIT" :
+            wRatio > 1.1 ? "IMAGE_ASPECT_RATIO_LANDSCAPE" :
+            "IMAGE_ASPECT_RATIO_SQUARE";
+
+        let whiskCharacterSession: import("../services/image-generators").WhiskCharacterSession | null = null;
+        let whiskCharacterBase64: string | null = null;
+
+        const customCharacters: any[] = body.customCharacters || [];
+        if (imageGenerator === "whisk" && customCharacters.length > 0) {
+            const primaryChar = customCharacters.find((c: any) => c.imageUrl);
+            if (primaryChar?.imageUrl) {
+                try {
+                    const cookie = await getResolvedApiKey("whisk", userId);
+                    if (cookie) {
+                        const { createWhiskCharacterSession } = await import("../services/image-generators");
+                        whiskCharacterSession = await createWhiskCharacterSession(cookie);
+                        const imgUrl: string = primaryChar.imageUrl;
+                        if (imgUrl.startsWith("http://") || imgUrl.startsWith("https://")) {
+                            const res = await fetch(imgUrl);
+                            if (res.ok) whiskCharacterBase64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+                        } else {
+                            const absPath = path.join(process.cwd(), "public", imgUrl.replace(/^\//, ""));
+                            if (fs.existsSync(absPath)) whiskCharacterBase64 = fs.readFileSync(absPath).toString("base64");
+                        }
+                        if (whiskCharacterBase64) {
+                            logInfo("BG_GEN", `Whisk character reference loaded for "${primaryChar.name}"`, { projectId });
+                        }
+                    }
+                } catch (charErr) {
+                    logWarning("BG_GEN", "Could not set up Whisk character session; falling back to standard generation", { error: String(charErr) });
+                    whiskCharacterSession = null;
+                    whiskCharacterBase64 = null;
+                }
+            }
+        }
+
         // Iterate (start from startFromScene)
         for (let i = startFromScene; i < scenesText.length; i++) {
             const scene = scenesText[i];
@@ -338,18 +377,36 @@ export class ProjectController extends BaseController {
                             throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
                         }
                     } else if (selectedGenerator === "whisk") {
-                        const { generateImageWithWhisk } = await import("../services/image-generators");
+                        const { generateImageWithWhisk, generateImageWithWhiskCharacter } = await import("../services/image-generators");
                         try {
                             const cookie = await getResolvedApiKey("whisk", userId);
                             if (!cookie) {
                                 throw new Error("Google Whisk cookie not configured. Please add your Google cookie in Settings.");
                             }
-                            const imageUrl = await generateImageWithWhisk(imagePrompt, cookie, width, height);
 
-                            const imageResponse = await fetch(imageUrl);
-                            if (!imageResponse.ok) throw new Error(`Failed to download image from Whisk`);
-                            const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-                            fs.writeFileSync(imagePath, imageBuffer);
+                            let imageDataUrl: string;
+                            if (whiskCharacterSession && whiskCharacterBase64) {
+                                // Character-consistent generation: pass the avatar as a subject reference
+                                imageDataUrl = await generateImageWithWhiskCharacter(
+                                    imagePrompt,
+                                    whiskCharacterSession,
+                                    whiskCharAspectRatio,
+                                    whiskCharacterBase64,
+                                );
+                            } else {
+                                // Standard text-to-image generation
+                                imageDataUrl = await generateImageWithWhisk(imagePrompt, cookie, width, height);
+                            }
+
+                            // Handle both data: URLs (base64) and regular URLs
+                            if (imageDataUrl.startsWith("data:")) {
+                                const base64Data = imageDataUrl.replace(/^data:image\/\w+;base64,/, "");
+                                fs.writeFileSync(imagePath, Buffer.from(base64Data, "base64"));
+                            } else {
+                                const imageResponse = await fetch(imageDataUrl);
+                                if (!imageResponse.ok) throw new Error(`Failed to download image from Whisk`);
+                                fs.writeFileSync(imagePath, Buffer.from(await imageResponse.arrayBuffer()));
+                            }
                             imageResult = { success: true };
                         } catch (error) {
                             const message = error instanceof Error ? error.message : String(error);
