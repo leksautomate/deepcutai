@@ -352,27 +352,36 @@ export async function generateImagePrompt(
     styleDesc = baseStyle;
   }
 
-  const prompt = `# ROLE
+  const prompt = `ROLE
 You are a professional AI image prompt architect creating prompts for cinematic video scene visualization.
 
 # SCENE TEXT
 "${sceneText}"
 
 # VISUAL STYLE
-${styleDesc}
+"${styleDesc}"
 
 # REQUIREMENTS
-1. Create a single, detailed prompt (100-200 words) describing the exact visual
-2. Include: subject positioning, lighting direction, camera angle, atmosphere, textures
-3. Use cinematic language: "golden hour lighting", "shallow depth of field", "wide establishing shot"
-4. Blend the style naturally into the scene description
+1. Create a detailed, 100-200 word prompt based on the SCENE TEXT and VISUAL STYLE.dont repeat the scene on the image what we need it the image prompt
+2. You MUST strictly format your output into three distinct sections: "**Style:**", "**Subject:**", and "**Environment & Atmosphere:**".
+3. Include cinematic camera angles, subject positioning, lighting direction, and rich textures.
+4. Expand on the provided visual style to make the prompt highly descriptive.
+5. Not text on image , do not by any chance add this on image
 
 # CONSTRAINTS
-- Output ONLY the prompt text - no explanations, alternatives, or preamble
-- Format: 16:9 landscape aspect ratio
-- FORBIDDEN: text, words, letters, watermarks, signatures, logos, UI elements
-- FORBIDDEN: meta-phrases like "create an image of" or "an illustration showing"
-- Begin directly with the scene description
+- Output ONLY the prompt text in the three required sections - no explanations, alternatives, or preamble.
+- Format: 16:9 landscape aspect ratio.
+- FORBIDDEN: no text, words, letters, watermarks, signatures, logos, UI elements.
+- FORBIDDEN: meta-phrases like "create an image of" or "an illustration showing".
+- FORBIDDEN: real names of celebrities, public figures, politicians, or specific historical persons. You MUST anonymize them into generic physical descriptions (e.g., use "a middle-aged Roman general" instead of "Julius Caesar").
+
+# OUTPUT FORMAT
+**Style:** [Describe the art style, medium, and color palette based on the VISUAL STYLE and add no text on image]
+
+**Subject:** [Describe the characters, action, camera angle, and positioning based on the SCENE TEXT]
+
+**Environment & Atmosphere:** [Describe the lighting, weather, background, and mood]
+Negative prompt : no text on image
 
 # OUTPUT
 [Your detailed image prompt here]`;
