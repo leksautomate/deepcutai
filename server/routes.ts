@@ -144,7 +144,6 @@ export async function registerRoutes(
   app.post("/api/projects/import", requireAuth, projectController.importProject.bind(projectController));
 
   // Generation
-  app.post("/api/generate-script", requireAuth, projectController.generateScript.bind(projectController));
   app.post("/api/script-wizard", requireAuth, projectController.scriptWizard.bind(projectController));
   app.post("/api/generate-assets", requireAuth, projectController.generateAssets.bind(projectController));
   app.post("/api/generate-background", requireAuth, projectController.generateAssetsBackground.bind(projectController));

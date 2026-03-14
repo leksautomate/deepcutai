@@ -263,13 +263,20 @@ async function createSceneVideo(
 
   if (audioFile && fs.existsSync(audioFile)) {
     const sceneWithAudioPath = path.join(projectDir, `scene-${index}-with-audio.mp4`);
+    // Short fade-in/out to eliminate clicks/pops at scene join points.
+    // Also normalise sample rate/channels so all clips are consistent before concat.
+    const fadeOut = Math.max(0, audioDuration - 0.08);
+    const audioFilter = `aresample=44100,aformat=channel_layouts=stereo,afade=t=in:st=0:d=0.05,afade=t=out:st=${fadeOut}:d=0.08`;
     const audioArgs = [
       "-y",
       "-i", sceneVideoPath,
       "-i", audioFile,
       "-c:v", "copy",
+      "-af", audioFilter,
       "-c:a", "aac",
       "-b:a", "256k",
+      "-ar", "44100",
+      "-ac", "2",
       "-map", "0:v:0",
       "-map", "1:a:0",
       "-shortest",

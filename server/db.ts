@@ -2,15 +2,21 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { Pool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "@shared/schema";
 
-import { getRequiredSecret } from "./utils/secrets";
+import { getSecret } from "./utils/secrets";
 
-const databaseUrl = getRequiredSecret("database_url", "DATABASE_URL");
+const databaseUrl = getSecret("database_url", "DATABASE_URL");
 
-export const pool = new Pool({
-  connectionString: databaseUrl,
-});
+export let pool: Pool | null = null;
+export let db: NodePgDatabase<typeof schema> | null = null;
 
-export const db = drizzle(pool, { schema });
+if (databaseUrl) {
+  pool = new Pool({
+    connectionString: databaseUrl,
+  });
+  db = drizzle(pool, { schema });
+} else {
+  console.warn("[DB] DATABASE_URL not set — running with in-memory storage.");
+}

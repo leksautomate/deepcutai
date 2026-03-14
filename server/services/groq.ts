@@ -1,6 +1,5 @@
 import { getResolvedApiKey } from "./api-keys";
 import { logInfo, logError, logWarning } from "./logger";
-import { getAppSettings } from "./settings";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -10,14 +9,11 @@ export interface ImagePromptOptions {
   customStyle?: HistoricalStyle;
 }
 
-import type { ReferenceAsset } from "@shared/schema";
-
 export interface GroqScriptOptions {
   topic: string;
   style?: "educational" | "entertaining" | "documentary" | "storytelling";
   duration?: "30s" | "1min" | "2min" | "10min";
   userId?: string;
-  customCharacters?: ReferenceAsset[];
   scenePacing?: "auto" | "sentence" | "manual";
   customScript?: boolean;
   imageStyle?: string;
@@ -214,6 +210,85 @@ const STYLE_PRESETS: Record<string, HistoricalStyle> = {
 
 
 
+export interface DynamicJsonPromptOptions {
+  sceneText: string;
+  jsonTemplate: string;
+  imageStyle?: string;
+  customStyle?: HistoricalStyle;
+}
+
+export async function generateDynamicJsonPromptWithGroq(options: DynamicJsonPromptOptions): Promise<string> {
+  const { sceneText, jsonTemplate, imageStyle = "cinematic", customStyle } = options;
+  const apiKey = await getResolvedApiKey("groq");
+
+  if (!apiKey) {
+    logWarning("Groq", "GROQ_API_KEY not configured, using raw JSON template");
+    return jsonTemplate.replace("<ADD_SCENE_HERE>", sceneText);
+  }
+
+  const style = customStyle || STYLE_PRESETS[imageStyle] || DEFAULT_HISTORICAL_STYLE;
+  const styleDesc = `${style.art_style}. Composition: ${style.composition}. Colors: ${style.color_style}. Details: ${style.fine_details}`;
+
+  const systemPrompt = `# ROLE
+You are an expert JSON structured data generator for AI cinematic visualization.
+
+# TASK
+The user has provided a base JSON template for an image generation prompt. Your job is to return THIS EXACT SAME JSON STRUCTURE, but intelligently fill in the blanks based on the SCENE SCRIPT and VISUAL STYLE.
+
+Make sure to apply the following rules to the JSON output:
+1. Replace <ADD_SCENE_HERE> or any general "scene" fields with a highly detailed physical description of what is happening in the scene based on the SCENE SCRIPT, enviroment the action is taking place in, not just the charcter actions only but what is happening around them.
+2. If the JSON has character appearance or pose fields, dynamically adjust their facial expression, physical action, and body language to match the emotion and actions described in the SCENE SCRIPT. 
+3. The character should NOT just stand there; they must be performing an action described in the script with other , so dont only focus on the charcter only.
+4. Integrate the exact VISUAL STYLE into the "style" or "art_style" fields of the JSON.
+5. You MUST output ONLY valid JSON. No markdown blocks, no explanations, no preamble.
+
+# VISUAL STYLE
+"${styleDesc}"
+
+# SCENE SCRIPT
+"${sceneText}"
+`;
+
+  const userPrompt = `Here is the base JSON template to populate:\n\n${jsonTemplate}\n\nRemember: RETURN ONLY VALID JSON. Do not change the keys or structure, just enhance the values dynamically.`;
+
+  try {
+    const response = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!response.ok) {
+      logError("Groq", "Dynamic JSON Groq API error");
+      return jsonTemplate.replace("<ADD_SCENE_HERE>", sceneText);
+    }
+
+    const data = await response.json();
+    const generatedJson = data.choices?.[0]?.message?.content?.trim();
+
+    if (generatedJson) {
+      logInfo("Groq", "Generated dynamic JSON prompt", { preview: generatedJson.slice(0, 100) });
+      return generatedJson;
+    }
+    return jsonTemplate.replace("<ADD_SCENE_HERE>", sceneText);
+  } catch (error) {
+    logError("Groq", "Dynamic JSON generation error", error);
+    return jsonTemplate.replace("<ADD_SCENE_HERE>", sceneText);
+  }
+}
+
 export async function generateImagePromptWithGroq(options: ImagePromptOptions): Promise<string> {
   const { sceneText, imageStyle = "historical", customStyle } = options;
   const apiKey = await getResolvedApiKey("groq");
@@ -335,7 +410,7 @@ function generateFallbackPrompt(sceneText: string, imageStyle: string, customSty
 export { DEFAULT_HISTORICAL_STYLE };
 
 export async function generateScriptWithGroq(options: GroqScriptOptions): Promise<GroqGeneratedScript> {
-  const { topic, style = "documentary", duration = "1min", userId, customCharacters, scenePacing, customScript, imageStyle = "doodle" } = options;
+  const { topic, style = "documentary", duration = "1min", userId, scenePacing, customScript } = options;
   const apiKey = await getResolvedApiKey("groq", userId);
 
   if (!apiKey) {
@@ -344,77 +419,6 @@ export async function generateScriptWithGroq(options: GroqScriptOptions): Promis
 
   let prompt = "";
   let systemContent = VIRAL_SCRIPT_SYSTEM_PROMPT;
-
-  // Handle Character Injections
-  let castInstructions = "";
-  if (customCharacters && customCharacters.length > 0) {
-    const castDescriptions = customCharacters.map(c => `[${c.name}]: ${c.promptText}`).join("\n");
-
-    // Dynamically build the requested Art Style Constraints
-    let styleConstraint = "";
-    if (imageStyle === "doodle") {
-      styleConstraint = `• Style: Simple 2D hand-drawn minimalist cartoon / doodle illustration
-• Visual feel similar to basic explainer illustrations (thin black outlines, flat fills)
-• NO realism, NO 3D, NO cinematic lighting
-• Character centered or slightly off-center
-• Clean white or very light background
-• Thin or medium black outlines (not sketchy, not painterly)
-• Flat pastel or muted colours with very light or no shading
-• Simple facial features (round head, minimal eyes, eyebrows, mouth)
-• Clear, exaggerated facial expressions matching the script line emotion`;
-    } else {
-      let preset = STYLE_PRESETS[imageStyle] || STYLE_PRESETS["realistic"];
-
-      // Check for user-created custom styles if not found in hardcoded presets
-      if (imageStyle.startsWith("custom_")) {
-        const settings = getAppSettings();
-        const customId = imageStyle.replace("custom_", "");
-        const foundStyle = settings.customImageStyles?.find(s => s.id === customId);
-        if (foundStyle) {
-          preset = {
-            art_style: foundStyle.styleText,
-            composition: "Dynamic character framing",
-            color_style: "Matches art style mood",
-            fine_details: "High quality rendering preserving character details"
-          };
-        }
-      }
-
-      styleConstraint = `• Art Style: ${preset.art_style}
-• Composition: ${preset.composition}
-• Colors and Lighting: ${preset.color_style}
-• Details: ${preset.fine_details}
-• Ensure characters remain perfectly consistent in appearance across all frames using the exact provided descriptions.`;
-    }
-
-    castInstructions = `
-You are a professional AI visual storyboard engineer specialising in YouTube videos.
-
-# CAST REQUIREMENTS (CRITICAL)
-The following characters are starring in this video:
-${castDescriptions}
-
-IMAGE PROMPT REQUIREMENTS (MANDATORY):
-• Full-body view of the SAME character in every image based on the cast descriptions
-• Head-to-toe visibility — NEVER cropped
-${styleConstraint}
-
-Character Identity (STRICT):
-• The Image Prompt MUST explicitly mention the character's visual description at the beginning of EVERY image prompt.
-• Example format: "Full-body illustration of [exact character description] standing..."
-• VERY IMPORTANT: The exact same physical appearance, hair, face, and clothing MUST be described verbatim in every single prompt to force the AI image generator to maintain perfect character consistency across all scenes.
-
-Character clothing (keep identical every time):
-• Describe the exact same clothing for the character in every scene.
-• No logos, no patterns, NO text on clothing.
-
-Props (ONLY when relevant to the script line):
-• Props must match the visual art style requested
-• CRITICAL: NO text of any kind inside the image. Do not include signs, labels, speech bubbles, words, signatures, or watermarks. The image MUST be 100% text-free.
-• Clean, uncluttered composition
-• Clearly describe pose, facial expression, body language, props, and explicitly confirm full-body framing
-`;
-  }
 
   if (customScript) {
     // Custom Script Flow
@@ -428,10 +432,8 @@ Props (ONLY when relevant to the script line):
     }
 
     systemContent = `You are a video script processor.
-    
-Your single job is to take the EXACT provided user script and format it into our required JSON structure for video generation.
 
-${castInstructions}
+Your single job is to take the EXACT provided user script and format it into our required JSON structure for video generation.
 
 # PACING RULES
 ${pacingInstructions}`;
@@ -453,7 +455,7 @@ Return your response as ONLY valid JSON:
     // Standard AI Generation Flow
     const durationGuide = getGroqDurationGuide(duration);
 
-    systemContent = `${VIRAL_SCRIPT_SYSTEM_PROMPT}\n${castInstructions}`;
+    systemContent = VIRAL_SCRIPT_SYSTEM_PROMPT;
 
     prompt = `## YOUR TASK
 
@@ -498,9 +500,17 @@ Style: ${style === "documentary" ? "Cold, factual documentary narrator" : style 
 
     let parsed: { script?: string; scenes?: (string | { text: string })[] };
     try {
-      parsed = JSON.parse(content);
+      if (content.trim().startsWith('{')) {
+        parsed = JSON.parse(content);
+      } else {
+        const match = content.match(/\{[\s\S]*\}/);
+        parsed = match ? JSON.parse(match[0]) : JSON.parse(content);
+      }
     } catch (parseError) {
-      logError("Groq", "Failed to parse JSON response", undefined, { preview: content.slice(0, 200) });
+      logError("Groq", "Failed to parse JSON response", undefined, {
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+        preview: content.slice(0, 500)
+      });
       // Fallback: treat the entire response as a script, splitting by double newlines
       const fallbackScenes = content.split("\n\n").filter(Boolean);
       return {

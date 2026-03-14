@@ -2,6 +2,7 @@ import { type User, type InsertUser, type VideoProject, type InsertVideoProject,
 import { randomUUID } from "crypto";
 import { db, pool } from "./db";
 import { eq, sql } from "drizzle-orm";
+import type { Pool } from "pg";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import createMemoryStore from "memorystore";
@@ -38,9 +39,9 @@ export interface IStorage {
 }
 
 // Create session table SQL (inline to avoid file dependency)
-async function ensureSessionTable() {
+async function ensureSessionTable(pgPool: Pool) {
   try {
-    await pool.query(`
+    await pgPool.query(`
       CREATE TABLE IF NOT EXISTS "session" (
         "sid" varchar NOT NULL COLLATE "default",
         "sess" json NOT NULL,
@@ -56,49 +57,54 @@ async function ensureSessionTable() {
 
 export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
+  private _db: NonNullable<typeof db>;
+  private _pool: NonNullable<typeof pool>;
 
   constructor() {
+    if (!db || !pool) throw new Error("DatabaseStorage requires a database connection");
+    this._db = db;
+    this._pool = pool;
     // Create session table before initializing store
-    ensureSessionTable();
-    this.sessionStore = new PostgresSessionStore({ pool });
+    ensureSessionTable(this._pool);
+    this.sessionStore = new PostgresSessionStore({ pool: this._pool });
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.id, id));
+    const result = await this._db.select().from(users).where(eq(users.id, id));
     return result[0];
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.username, username));
+    const result = await this._db.select().from(users).where(eq(users.username, username));
     return result[0];
   }
 
   async getUserCount(): Promise<number> {
-    const result = await db.select({ count: sql<number>`count(*)::int` }).from(users);
+    const result = await this._db.select({ count: sql<number>`count(*)::int` }).from(users);
     return result[0]?.count || 0;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const result = await db.insert(users).values({ ...insertUser, id }).returning();
+    const result = await this._db.insert(users).values({ ...insertUser, id }).returning();
     return result[0];
   }
 
   async updateUserPassword(id: string, hashedPassword: string): Promise<void> {
-    await db.update(users).set({ password: hashedPassword }).where(eq(users.id, id));
+    await this._db.update(users).set({ password: hashedPassword }).where(eq(users.id, id));
   }
 
   async getVideoProject(id: string): Promise<VideoProject | undefined> {
-    const result = await db.select().from(videoProjects).where(eq(videoProjects.id, id));
+    const result = await this._db.select().from(videoProjects).where(eq(videoProjects.id, id));
     return result[0];
   }
 
   async getAllVideoProjects(): Promise<VideoProject[]> {
-    return await db.select().from(videoProjects).orderBy(sql`${videoProjects.createdAt} DESC`);
+    return await this._db.select().from(videoProjects).orderBy(sql`${videoProjects.createdAt} DESC`);
   }
 
   async getAllVideoProjectsSummary(): Promise<Omit<VideoProject, 'manifest' | 'script' | 'chapters'>[]> {
-    return await db.select({
+    return await this._db.select({
       id: videoProjects.id,
       title: videoProjects.title,
       status: videoProjects.status,
@@ -124,7 +130,7 @@ export class DatabaseStorage implements IStorage {
   async createVideoProject(project: InsertVideoProject): Promise<VideoProject> {
     const id = randomUUID();
     const now = new Date();
-    const result = await db.insert(videoProjects).values({
+    const result = await this._db.insert(videoProjects).values({
       ...project,
       id,
       createdAt: now,
@@ -134,7 +140,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateVideoProject(id: string, updates: Partial<InsertVideoProject>): Promise<VideoProject | undefined> {
-    const result = await db.update(videoProjects)
+    const result = await this._db.update(videoProjects)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(videoProjects.id, id))
       .returning();
@@ -142,24 +148,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteVideoProject(id: string): Promise<boolean> {
-    const result = await db.delete(videoProjects).where(eq(videoProjects.id, id)).returning();
+    const result = await this._db.delete(videoProjects).where(eq(videoProjects.id, id)).returning();
     return result.length > 0;
   }
 
   async getApiKey(userId: string, provider: string): Promise<ApiKey | undefined> {
-    const result = await db.select().from(apiKeys)
+    const result = await this._db.select().from(apiKeys)
       .where(sql`${apiKeys.userId} = ${userId} AND ${apiKeys.provider} = ${provider}`);
     return result[0];
   }
 
   async getAllApiKeys(userId: string): Promise<ApiKey[]> {
-    return await db.select().from(apiKeys).where(eq(apiKeys.userId, userId));
+    return await this._db.select().from(apiKeys).where(eq(apiKeys.userId, userId));
   }
 
   async createApiKey(data: InsertApiKey & { userId: string }): Promise<ApiKey> {
     const id = randomUUID();
     const now = new Date();
-    const result = await db.insert(apiKeys).values({
+    const result = await this._db.insert(apiKeys).values({
       ...data,
       id,
       createdAt: now,
@@ -169,7 +175,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateApiKey(id: string, updates: Partial<InsertApiKey>): Promise<ApiKey | undefined> {
-    const result = await db.update(apiKeys)
+    const result = await this._db.update(apiKeys)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(apiKeys.id, id))
       .returning();
@@ -177,7 +183,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteApiKey(id: string): Promise<boolean> {
-    const result = await db.delete(apiKeys).where(eq(apiKeys.id, id)).returning();
+    const result = await this._db.delete(apiKeys).where(eq(apiKeys.id, id)).returning();
     return result.length > 0;
   }
 
@@ -187,13 +193,13 @@ export class DatabaseStorage implements IStorage {
 
   private async getOrCreateTodayUsage(): Promise<UsageAnalytics> {
     const today = this.getTodayKey();
-    const result = await db.select().from(usageAnalytics).where(eq(usageAnalytics.date, today));
+    const result = await this._db.select().from(usageAnalytics).where(eq(usageAnalytics.date, today));
 
     if (result.length > 0) {
       return result[0];
     }
 
-    const newUsage = await db.insert(usageAnalytics).values({
+    const newUsage = await this._db.insert(usageAnalytics).values({
       id: randomUUID(),
       date: today,
       videosCreated: 0,
@@ -208,7 +214,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUsageStats(): Promise<UsageStats> {
-    const allUsage = await db.select().from(usageAnalytics);
+    const allUsage = await this._db.select().from(usageAnalytics);
     const today = this.getTodayKey();
     const todayUsage = allUsage.find(u => u.date === today);
 
@@ -257,14 +263,14 @@ export class DatabaseStorage implements IStorage {
         break;
     }
 
-    await db.update(usageAnalytics)
+    await this._db.update(usageAnalytics)
       .set(updates)
       .where(eq(usageAnalytics.id, usage.id));
   }
 
   async clearAllData(): Promise<{ projectsDeleted: number; analyticsDeleted: number }> {
-    const projects = await db.delete(videoProjects).returning();
-    const analytics = await db.delete(usageAnalytics).returning();
+    const projects = await this._db.delete(videoProjects).returning();
+    const analytics = await this._db.delete(usageAnalytics).returning();
     return {
       projectsDeleted: projects.length,
       analyticsDeleted: analytics.length,
@@ -509,4 +515,18 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage: IStorage = new DatabaseStorage();
+function createStorage(): IStorage {
+  if (db && pool) {
+    try {
+      console.log("[STORAGE] Using PostgreSQL database storage.");
+      return new DatabaseStorage();
+    } catch (err) {
+      console.warn("[STORAGE] Failed to initialize DatabaseStorage, falling back to MemStorage:", err);
+    }
+  } else {
+    console.log("[STORAGE] No database configured — using in-memory storage.");
+  }
+  return new MemStorage();
+}
+
+export const storage: IStorage = createStorage();

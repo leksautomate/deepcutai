@@ -139,20 +139,6 @@ export const inworldVoiceOptions = [
 export type VoiceOption = typeof voiceOptions[number];
 export type InworldVoiceOption = typeof inworldVoiceOptions[number];
 
-// Reference Asset (Characters, Scenes, Styles) for precise Generation
-export const assetCategories = ["SUBJECT", "SCENE", "STYLE"] as const;
-export type AssetCategory = typeof assetCategories[number];
-
-export const referenceAssetSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  category: z.enum(assetCategories).default("SUBJECT"),
-  promptText: z.string(),
-  imageUrl: z.string().optional(),
-  whiskMediaId: z.string().optional(),
-});
-export type ReferenceAsset = z.infer<typeof referenceAssetSchema>;
-
 // Image style options
 export const imageStyles = [
   { id: "cinematic", name: "Cinematic", description: "High-quality cinematic visuals" },
@@ -229,7 +215,6 @@ export const generateScriptRequestSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
   style: z.enum(["educational", "entertaining", "documentary", "storytelling"]).optional(),
   duration: z.enum(["30s", "1min", "2min", "10min"]).optional(),
-  customCharacters: z.array(referenceAssetSchema).optional(),
   scenePacing: z.enum(["auto", "sentence", "manual"]).optional(),
   customScript: z.boolean().optional().default(false),
   imageStyle: z.string().optional(),

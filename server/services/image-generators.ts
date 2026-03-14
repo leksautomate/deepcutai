@@ -517,91 +517,54 @@ export async function generateImageWithWhisk(
 }
 
 /**
- * A dedicated Whisk project session for character-consistent image generation.
- * Created once per video generation run; NOT shared with the global session cache.
- */
-export interface WhiskCharacterSession {
-  projectId: string;
-  getToken: () => Promise<string>;
-}
-
-/**
- * Creates a fresh, isolated Whisk project for character video generation.
- * Must be called once before the scene loop; the returned session is reused for all scenes
- * so the same project context is preserved (which aids subject consistency).
- */
-export async function createWhiskCharacterSession(cookie: string): Promise<WhiskCharacterSession> {
-  const { Whisk } = await import("@rohitaryal/whisk-api");
-  const whisk = new Whisk(cookie);
-  const project = await whisk.newProject("DeepCut Character");
-  logInfo("Whisk", "Character session created", { projectId: project.projectId });
-  return {
-    projectId: project.projectId,
-    getToken: () => project.account.getToken(),
-  };
-}
-
-/**
- * Generates a scene image using a character avatar as a subject reference.
- * The character's base64 image is sent to the Whisk API alongside the prompt so that
- * Imagen 3.5 can ground the generation to the same character across all scenes.
+ * Generates a scene image with character/style reference consistency.
+ * Creates a fresh Whisk project per call (stateless, matching Bulkmass approach),
+ * adds the raw base64 references, generates, then deletes the project.
  *
  * @param prompt           - Scene image prompt
- * @param session          - Dedicated character session from createWhiskCharacterSession
+ * @param cookie           - Google Whisk cookie
+ * @param refs             - Raw base64 strings (NO data: prefix) for subject and/or style
  * @param whiskAspectRatio - Whisk aspect ratio constant
- * @param subjectBase64    - Raw base64 of the character avatar (no "data:..." header)
  */
 export async function generateImageWithWhiskCharacter(
   prompt: string,
-  session: WhiskCharacterSession,
-  whiskAspectRatio: "IMAGE_ASPECT_RATIO_SQUARE" | "IMAGE_ASPECT_RATIO_PORTRAIT" | "IMAGE_ASPECT_RATIO_LANDSCAPE",
-  subjectBase64: string,
+  cookie: string,
+  refs: { subjectRawBase64?: string; styleRawBase64?: string },
+  whiskAspectRatio: "IMAGE_ASPECT_RATIO_SQUARE" | "IMAGE_ASPECT_RATIO_PORTRAIT" | "IMAGE_ASPECT_RATIO_LANDSCAPE"
 ): Promise<string> {
   return withRetry(
     async () => {
-      const token = await session.getToken();
-      const finalPrompt = prompt + ", NO TEXT, NO WATERMARK, NO SIGNATURE, clear image";
+      const { Whisk } = await import("@rohitaryal/whisk-api");
+      const whisk = new Whisk(cookie);
+      const project = await whisk.newProject("DeepCut Character");
 
-      const requestBody = {
-        clientContext: { workflowId: session.projectId },
-        imageModelSettings: {
-          imageModel: "IMAGEN_3_5",
-          aspectRatio: whiskAspectRatio,
-        },
-        seed: 0,
+      if (refs.subjectRawBase64) await project.addSubject({ base64: refs.subjectRawBase64 });
+      if (refs.styleRawBase64)   await project.addStyle({ base64: refs.styleRawBase64 });
+
+      // GEM_PIX's userInstruction field works best with plain prose,
+      // not the structured markdown (**Style:**, **Subject:**) that Groq generates.
+      // Strip the headers and collapse to a single flowing description.
+      const cleanPrompt = prompt
+        .replace(/\*\*[^*]+:\*\*\s*/g, "")   // remove **Header:** markers
+        .replace(/\n{2,}/g, " ")              // collapse paragraph breaks
+        .trim();
+      const finalPrompt = cleanPrompt + ", NO TEXT, NO WATERMARK, clear image";
+
+      const media = await project.generateImageWithReferences({
         prompt: finalPrompt,
-        mediaCategory: "MEDIA_CATEGORY_BOARD",
-        // Subject reference for character consistency across scenes
-        subjectImages: [{
-          rawBytes: subjectBase64,
-          mediaCategory: "MEDIA_CATEGORY_SUBJECT",
-        }],
-      };
-
-      const response = await fetch("https://aisandbox-pa.googleapis.com/v1/whisk:generateImage", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
+        aspectRatio: whiskAspectRatio,
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        logError("WhiskCharacter", `API error ${response.status}`, undefined, { body: errorText.slice(0, 400) });
-        throw new Error(`Whisk character generation failed (${response.status}): ${errorText.slice(0, 200)}`);
-      }
+      // fire-and-forget cleanup
+      project.delete().catch(() => {});
 
-      const data = await response.json() as any;
-      const img = data.imagePanels?.[0]?.generatedImages?.[0];
-      if (!img?.encodedImage) {
-        logError("WhiskCharacter", "No image in response", undefined, { topLevelKeys: Object.keys(data) });
-        throw new Error("Whisk character generation returned no image data");
-      }
+      if (!media) throw new Error("Whisk character generation returned no image data");
 
       logInfo("WhiskCharacter", "Character-consistent image generated", { aspectRatio: whiskAspectRatio });
-      return `data:image/png;base64,${img.encodedImage}`;
+
+      let resultData: string = media.encodedMedia;
+      if (!resultData.startsWith("data:")) resultData = `data:image/png;base64,${resultData}`;
+      return resultData;
     },
     {
       maxRetries: 4,

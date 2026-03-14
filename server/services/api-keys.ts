@@ -26,6 +26,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
  * Since this is a single-user app, we just get the first user.
  */
 async function getDefaultUserId(): Promise<string | null> {
+  if (!db) return null;
   try {
     const result = await db.select({ id: users.id }).from(users).limit(1);
     if (result.length > 0) {

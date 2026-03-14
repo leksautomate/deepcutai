@@ -12,14 +12,11 @@ async function getGeminiClient(userId?: string): Promise<GoogleGenAI> {
   return new GoogleGenAI({ apiKey });
 }
 
-import type { ReferenceAsset } from "@shared/schema";
-
 export interface GenerateScriptOptions {
   topic: string;
   style?: "educational" | "entertaining" | "documentary" | "storytelling";
   duration?: "30s" | "1min" | "2min" | "10min";
   userId?: string;
-  customCharacters?: ReferenceAsset[];
   scenePacing?: "auto" | "sentence" | "manual";
   customScript?: boolean; // If true, the `topic` acts as the exact text
 }
@@ -164,22 +161,9 @@ function getDurationGuide(duration: string): string {
 export async function generateScript(
   options: GenerateScriptOptions,
 ): Promise<GeneratedScript> {
-  const { topic, style = "documentary", duration = "1min", userId, customCharacters, scenePacing, customScript } = options;
+  const { topic, style = "documentary", duration = "1min", userId, scenePacing, customScript } = options;
 
   let prompt = "";
-
-  // Handle Character Injections
-  let castInstructions = "";
-  if (customCharacters && customCharacters.length > 0) {
-    const castDescriptions = customCharacters.map(c => `[${c.name}]: ${c.promptText}`).join("\n");
-    castInstructions = `
-# CAST REQUIREMENTS (CRITICAL)
-The following characters are starring in this video:
-${castDescriptions}
-
-You MUST explicitly append the precise visual descriptions of the actors to the end of EVERY scene's image prompt logic. If an actor appears in a scene, their visual description must be in that scene.
-`;
-  }
 
   if (customScript) {
     // Custom Script Flow
@@ -193,10 +177,8 @@ You MUST explicitly append the precise visual descriptions of the actors to the 
     }
 
     prompt = `You are a video script processor.
-    
-Your single job is to take the EXACT provided user script and format it into our required JSON structure for video generation.
 
-${castInstructions}
+Your single job is to take the EXACT provided user script and format it into our required JSON structure for video generation.
 
 # PACING RULES
 ${pacingInstructions}
@@ -228,8 +210,6 @@ Duration: ${durationGuide}
 
 Style: ${style === "documentary" ? "Cold, factual documentary narrator" : style === "storytelling" ? "Narrative and immersive" : style === "entertaining" ? "Engaging with energy" : "Informative and clear"}
 
-${castInstructions}
-
 **REMEMBER: Output ONLY the script text and scenes. No titles, no labels, no explanations.**
 
 Return your response as JSON:
@@ -254,14 +234,22 @@ Return your response as JSON:
       },
     });
 
-    const text = response.text || "";
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    console.log("RAW GEMINI RESPONSE TEXT:", text);
 
     let parsed: { script?: string; scenes?: (string | { text: string })[] };
     try {
-      parsed = JSON.parse(text);
+      if (text.trim().startsWith('{')) {
+        parsed = JSON.parse(text);
+      } else {
+        // Find JSON block if there's markdown
+        const match = text.match(/\{[\s\S]*\}/);
+        parsed = match ? JSON.parse(match[0]) : JSON.parse(text);
+      }
     } catch (parseError) {
       logError("Gemini", "Failed to parse JSON response", {
-        textPreview: text.slice(0, 200),
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+        textPreview: text.slice(0, 500),
       });
       // Fallback: treat the entire response as the script
       const fallbackScenes = text.split(/\n\n+/).filter((s: string) => s.trim());

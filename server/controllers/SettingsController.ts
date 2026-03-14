@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { BaseController } from './BaseController';
 import { getAppSettings, updateAppSettings } from '../services/settings';
-import { referenceAssetSchema } from '../../shared/schema';
 import { storage } from '../storage';
 import { getSecret } from '../utils/secrets';
 import { getWhiskCookieStatus } from '../utils/cookie-parser';
@@ -17,7 +16,6 @@ const customVoiceSchema = z.object({
 
 const settingsUpdateSchema = z.object({
     customVoices: z.array(customVoiceSchema).optional(),
-    customCharacters: z.array(referenceAssetSchema).optional(),
     sceneSettings: z.object({
         firstPageFrequency: z.number().min(5).max(120),
         restFrequency: z.number().min(5).max(240),
@@ -53,10 +51,8 @@ export class SettingsController extends BaseController {
     updateSettings(req: Request, res: Response) {
         try {
             const body = this.validateBody(settingsUpdateSchema, req.body);
-            const customCharacters = body.customCharacters as any;
             updateAppSettings({
                 customVoices: body.customVoices,
-                customCharacters,
                 sceneSettings: body.sceneSettings,
                 imageStyleSettings: body.imageStyleSettings,
                 transitionSettings: body.transitionSettings,

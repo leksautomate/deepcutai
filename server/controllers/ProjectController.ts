@@ -17,7 +17,6 @@ import { generateImageWithSeestream } from '../services/freepik';
 import { renderVideo, generateThumbnail, concatenateVideos, generateChapters } from '../services/ffmpeg';
 import { getResolvedApiKey } from '../services/api-keys';
 import {
-    generateScriptRequestSchema,
     scriptWizardRequestSchema,
     resolutionOptions,
     motionEffects,
@@ -38,7 +37,7 @@ function generateTitleFromScript(script: string, maxLength: number = 50): string
 
 // Validation schemas (migrated from routes.ts)
 const generateAssetsSchema = z.object({
-    script: z.string().min(1, "Script is required").max(100000),
+    script: z.string().min(1, "Script is required").max(1000000),
     title: z.string().optional(),
     topic: z.string().optional(),
     voiceId: z.string().optional(),
@@ -60,7 +59,6 @@ const generateAssetsSchema = z.object({
         narration: z.string(),
         visual: z.string(),
     })).optional(),
-    customCharacters: z.array(z.any()).optional(),
     generateAssetsOnly: z.boolean().optional(),
 });
 
@@ -186,7 +184,7 @@ export class ProjectController extends BaseController {
         // Pre-populate already-completed scenes when resuming
         if (startFromScene > 0) {
             for (let j = 0; j < startFromScene && j < scenesText.length; j++) {
-                const sceneId = `scene-${j + 1}`;
+                const sceneId = `${j + 1}`;
                 const audioPath = path.join(projectDir, `${sceneId}.mp3`);
                 const imagePath = path.join(projectDir, `${sceneId}.png`);
                 const videoFilePath = path.join(projectDir, `${sceneId}.mp4`);
@@ -216,54 +214,14 @@ export class ProjectController extends BaseController {
             logInfo("BG_GEN", `Pre-populated ${generatedScenes.length} completed scenes`, { projectId });
         }
 
-        // Generate a locked seed for character consistency across WaveSpeed frames
         const lockedSeed = Math.floor(Math.random() * 1000000);
-
-        // Whisk character consistency: compute aspect ratio string and load reference image once
-        const wRatio = width / height;
-        const whiskCharAspectRatio: "IMAGE_ASPECT_RATIO_SQUARE" | "IMAGE_ASPECT_RATIO_PORTRAIT" | "IMAGE_ASPECT_RATIO_LANDSCAPE" =
-            wRatio < 0.9 ? "IMAGE_ASPECT_RATIO_PORTRAIT" :
-                wRatio > 1.1 ? "IMAGE_ASPECT_RATIO_LANDSCAPE" :
-                    "IMAGE_ASPECT_RATIO_SQUARE";
-
-        let whiskCharacterSession: import("../services/image-generators").WhiskCharacterSession | null = null;
-        let whiskCharacterBase64: string | null = null;
-
-        const customCharacters: any[] = body.customCharacters || [];
-        if (imageGenerator === "whisk" && customCharacters.length > 0) {
-            const primaryChar = customCharacters.find((c: any) => c.imageUrl);
-            if (primaryChar?.imageUrl) {
-                try {
-                    const cookie = await getResolvedApiKey("whisk", userId);
-                    if (cookie) {
-                        const { createWhiskCharacterSession } = await import("../services/image-generators");
-                        whiskCharacterSession = await createWhiskCharacterSession(cookie);
-                        const imgUrl: string = primaryChar.imageUrl;
-                        if (imgUrl.startsWith("http://") || imgUrl.startsWith("https://")) {
-                            const res = await fetch(imgUrl);
-                            if (res.ok) whiskCharacterBase64 = Buffer.from(await res.arrayBuffer()).toString("base64");
-                        } else {
-                            const absPath = path.join(process.cwd(), "public", imgUrl.replace(/^\//, ""));
-                            if (fs.existsSync(absPath)) whiskCharacterBase64 = fs.readFileSync(absPath).toString("base64");
-                        }
-                        if (whiskCharacterBase64) {
-                            logInfo("BG_GEN", `Whisk character reference loaded for "${primaryChar.name}"`, { projectId });
-                        }
-                    }
-                } catch (charErr) {
-                    logWarning("BG_GEN", "Could not set up Whisk character session; falling back to standard generation", { error: String(charErr) });
-                    whiskCharacterSession = null;
-                    whiskCharacterBase64 = null;
-                }
-            }
-        }
 
         // Iterate (start from startFromScene)
         for (let i = startFromScene; i < scenesText.length; i++) {
             const scene = scenesText[i];
             const sceneTextNarration = scene.narration;
             const sceneTextVisual = scene.visual;
-            const sceneId = `scene-${i + 1}`;
+            const sceneId = `${i + 1}`;
 
             try {
                 // Report progress - Step 1: Voiceover
@@ -314,7 +272,6 @@ export class ProjectController extends BaseController {
                     progressMessage: `Scene ${i + 1}/${scenesText.length}: Generating image...`
                 });
 
-                // Image - Always use Groq for consistent prompt generation
                 let customStyleForPrompt = undefined;
                 if (imageStyle === "custom" && customStyleText) {
                     customStyleForPrompt = {
@@ -325,11 +282,7 @@ export class ProjectController extends BaseController {
                     };
                 }
 
-                const imagePrompt = await generateImagePromptWithGroq({
-                    sceneText: sceneTextVisual,
-                    imageStyle: imageStyle || "cinematic",
-                    customStyle: customStyleForPrompt,
-                });
+                const imagePrompt = sceneTextVisual;
 
                 const imagePath = path.join(projectDir, `${sceneId}.png`);
 
@@ -377,26 +330,14 @@ export class ProjectController extends BaseController {
                             throw new Error(`Failed to generate image for scene ${i + 1}: ${message}`);
                         }
                     } else if (selectedGenerator === "whisk") {
-                        const { generateImageWithWhisk, generateImageWithWhiskCharacter } = await import("../services/image-generators");
+                        const { generateImageWithWhisk } = await import("../services/image-generators");
                         try {
                             const cookie = await getResolvedApiKey("whisk", userId);
                             if (!cookie) {
                                 throw new Error("Google Whisk cookie not configured. Please add your Google cookie in Settings.");
                             }
 
-                            let imageDataUrl: string;
-                            if (whiskCharacterSession && whiskCharacterBase64) {
-                                // Character-consistent generation: pass the avatar as a subject reference
-                                imageDataUrl = await generateImageWithWhiskCharacter(
-                                    imagePrompt,
-                                    whiskCharacterSession,
-                                    whiskCharAspectRatio,
-                                    whiskCharacterBase64,
-                                );
-                            } else {
-                                // Standard text-to-image generation
-                                imageDataUrl = await generateImageWithWhisk(imagePrompt, cookie, width, height);
-                            }
+                            const imageDataUrl = await generateImageWithWhisk(imagePrompt, cookie, width, height);
 
                             // Handle both data: URLs (base64) and regular URLs
                             if (imageDataUrl.startsWith("data:")) {
@@ -647,67 +588,6 @@ export class ProjectController extends BaseController {
     // ==========================================
     // AI Generation
     // ==========================================
-
-    /**
-     * Generate a video script using AI
-     */
-    async generateScript(req: Request, res: Response) {
-        try {
-            const parsed = this.validateBody(generateScriptRequestSchema, req.body);
-            const { customCharacters, scenePacing, customScript, ...restParsed } = parsed;
-
-            const userId = this.getUserId(req);
-            const settings = getAppSettings();
-            const primaryProvider = settings.scriptProvider || "gemini";
-            const fallbackProvider = primaryProvider === "gemini" ? "groq" : "gemini";
-
-            let result;
-            let usedProvider = primaryProvider;
-
-            const generationOptions = {
-                ...restParsed,
-                userId,
-                customCharacters: customCharacters as any,
-                scenePacing,
-                customScript
-            };
-
-            try {
-                if (primaryProvider === "groq") {
-                    result = await generateScriptWithGroq(generationOptions);
-                } else {
-                    result = await generateScript(generationOptions);
-                }
-            } catch (primaryError) {
-                this.logInfo("API", `Primary provider (${primaryProvider}) failed, trying fallback (${fallbackProvider})...`);
-
-                try {
-                    if (fallbackProvider === "groq") {
-                        result = await generateScriptWithGroq(generationOptions);
-                    } else {
-                        result = await generateScript(generationOptions);
-                    }
-                    usedProvider = fallbackProvider;
-                } catch (fallbackError) {
-                    const error = primaryError as Error;
-                    const message = error.message?.includes("API key not configured")
-                        ? `${primaryProvider === "gemini" ? "Gemini" : "Groq"} API key not configured. Please add it in Settings or configure ${fallbackProvider === "gemini" ? "Gemini" : "Groq"} as a fallback.`
-                        : "Failed to generate script. Please check your API keys in Settings.";
-
-                    return res.status(500).json({ error: message });
-                }
-            }
-
-            return res.json({
-                title: result.title,
-                script: result.script,
-                scenes: result.scenes,
-                provider: usedProvider,
-            });
-        } catch (error) {
-            return this.handleError(error, res, 'ProjectController.generateScript');
-        }
-    }
 
     /**
      * Script Wizard — 4-step guided script generation
