@@ -21,6 +21,7 @@ interface TransitionSettings {
 
 type TTSProvider = "speechify" | "inworld";
 export type ScriptProvider = "gemini" | "groq";
+export type PromptProvider = "groq" | "claude" | "gemini";
 
 export interface CustomVoice {
   id: string;
@@ -45,6 +46,9 @@ export interface AppSettings {
   scriptProvider: ScriptProvider;
   defaultImageGenerator: string;
   defaultPollinationsModel: string;
+  promptProvider: PromptProvider;
+  claudeModel: string;
+  geminiPromptModel: string;
 }
 
 const SETTINGS_FILE = path.join(process.cwd(), "data", "settings.json");
@@ -70,9 +74,12 @@ const DEFAULT_SETTINGS: AppSettings = {
     defaultTransition: "fade",
     transitionDuration: 0.5,
   },
-  scriptProvider: "gemini",
+  scriptProvider: "groq",
   defaultImageGenerator: "wavespeed",
   defaultPollinationsModel: "flux",
+  promptProvider: "groq",
+  claudeModel: "claude-sonnet-4-6",
+  geminiPromptModel: "gemini-3.1-flash-lite-preview",
 };
 
 function loadSettings(): AppSettings {
@@ -91,6 +98,9 @@ function loadSettings(): AppSettings {
         customImageStyles: saved.customImageStyles || DEFAULT_SETTINGS.customImageStyles,
         defaultImageGenerator: saved.defaultImageGenerator || DEFAULT_SETTINGS.defaultImageGenerator,
         defaultPollinationsModel: saved.defaultPollinationsModel || DEFAULT_SETTINGS.defaultPollinationsModel,
+        promptProvider: saved.promptProvider || DEFAULT_SETTINGS.promptProvider,
+        claudeModel: saved.claudeModel || DEFAULT_SETTINGS.claudeModel,
+        geminiPromptModel: saved.geminiPromptModel || DEFAULT_SETTINGS.geminiPromptModel,
       };
     }
   } catch (err) {
@@ -124,6 +134,9 @@ export function updateAppSettings(updates: Partial<AppSettings>): void {
   if (updates.imageStyleSettings) appSettings.imageStyleSettings = { ...appSettings.imageStyleSettings, ...updates.imageStyleSettings };
   if (updates.transitionSettings) appSettings.transitionSettings = { ...appSettings.transitionSettings, ...updates.transitionSettings };
   if (updates.scriptProvider) appSettings.scriptProvider = updates.scriptProvider;
+  if (updates.promptProvider) appSettings.promptProvider = updates.promptProvider;
+  if (updates.claudeModel) appSettings.claudeModel = updates.claudeModel;
+  if (updates.geminiPromptModel) appSettings.geminiPromptModel = updates.geminiPromptModel;
   saveSettings();
 }
 

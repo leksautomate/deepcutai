@@ -19,6 +19,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
   runpod: { dbAliases: ["runpod"], envVar: "RUNPOD_API_KEY" },
   pollinations: { dbAliases: ["pollinations"], envVar: "POLLINATIONS_API_KEY" },
   whisk: { dbAliases: ["whisk"], envVar: "WHISK_COOKIE" },
+  anthropic: { dbAliases: ["anthropic"], envVar: "ANTHROPIC_API_KEY" },
 };
 
 /**

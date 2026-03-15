@@ -313,6 +313,7 @@ export async function generateImagePrompt(
   imageStyle: string,
   userId?: string,
   customStyle?: ImageStyleSettings,
+  model: string = "gemini-3.1-flash-lite-preview",
 ): Promise<string> {
   // Base style from Visual Style selector
   const styleDescriptions: Record<string, string> = {
@@ -377,7 +378,7 @@ Negative prompt : no text on image
   try {
     const ai = await getGeminiClient(userId);
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model,
       contents: prompt,
     });
 

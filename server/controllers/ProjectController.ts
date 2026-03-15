@@ -7,12 +7,13 @@ import { z } from 'zod';
 import { BaseController } from './BaseController';
 import { storage } from '../storage';
 import { logError, logInfo, logWarning } from '../services/logger';
-import { generateScript, wizardGenerateAngles, wizardGenerateIdeas, wizardGenerateHook, wizardGenerateFullScript } from '../services/gemini';
+import { generateScript, generateImagePrompt, wizardGenerateAngles, wizardGenerateIdeas, wizardGenerateHook, wizardGenerateFullScript } from '../services/gemini';
 import { generateScriptWithGroq, wizardGenerateAnglesWithGroq, wizardGenerateIdeasWithGroq, wizardGenerateHookWithGroq, wizardGenerateFullScriptWithGroq } from '../services/groq';
 import { getAppSettings } from '../services/settings';
 import { splitScriptIntoScenes } from '../services/settings';
 import { generateTTS } from '../services/speechify';
 import { generateImagePromptWithGroq } from '../services/groq';
+import { generateImagePromptWithClaude } from '../services/claude';
 import { generateImageWithSeestream } from '../services/freepik';
 import { renderVideo, generateThumbnail, concatenateVideos, generateChapters } from '../services/ffmpeg';
 import { getResolvedApiKey } from '../services/api-keys';
@@ -744,21 +745,19 @@ export class ProjectController extends BaseController {
                     });
                 }
 
-                let customStyleForPrompt = getAppSettings().imageStyleSettings;
-                if (imageStyle === "custom" && customStyleText) {
-                    customStyleForPrompt = {
-                        art_style: customStyleText,
-                        composition: "",
-                        color_style: "",
-                        fine_details: "",
-                    };
-                }
+                const customStyleForPrompt = imageStyle === "custom"
+                    ? (customStyleText ? { art_style: customStyleText, composition: "", color_style: "", fine_details: "" } : getAppSettings().imageStyleSettings)
+                    : undefined;
 
-                const imagePrompt = await generateImagePromptWithGroq({
-                    sceneText,
-                    imageStyle: imageStyle || "historical",
-                    customStyle: customStyleForPrompt,
-                });
+                const promptProvider = getAppSettings().promptProvider || "groq";
+                const claudeModel = getAppSettings().claudeModel || "claude-sonnet-4-6";
+                const geminiPromptModel = getAppSettings().geminiPromptModel || "gemini-3.1-flash-lite-preview";
+
+                const imagePrompt = promptProvider === "claude"
+                    ? await generateImagePromptWithClaude({ sceneText, imageStyle: imageStyle || "historical", customStyle: customStyleForPrompt, model: claudeModel })
+                    : promptProvider === "gemini"
+                    ? await generateImagePrompt(sceneText, imageStyle || "historical", userId, customStyleForPrompt as any, geminiPromptModel)
+                    : await generateImagePromptWithGroq({ sceneText, imageStyle: imageStyle || "historical", customStyle: customStyleForPrompt });
 
                 const imagePath = path.join(projectDir, `${sceneId}.png`);
                 let imageResult: { success: boolean; error?: string };

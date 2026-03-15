@@ -36,6 +36,7 @@ interface TransitionSettings {
 }
 
 type ScriptProvider = "gemini" | "groq";
+type PromptProvider = "groq" | "claude" | "gemini";
 
 interface AppSettings {
   customVoices: CustomVoice[];
@@ -49,6 +50,9 @@ interface AppSettings {
   scriptProvider: ScriptProvider;
   defaultImageGenerator?: string;
   defaultPollinationsModel?: string;
+  promptProvider: PromptProvider;
+  claudeModel: string;
+  geminiPromptModel: string;
 }
 
 const defaultSettings: AppSettings = {
@@ -71,6 +75,9 @@ const defaultSettings: AppSettings = {
   scriptProvider: "gemini",
   defaultImageGenerator: "wavespeed",
   defaultPollinationsModel: "flux",
+  promptProvider: "groq",
+  claudeModel: "claude-sonnet-4-6",
+  geminiPromptModel: "gemini-3.1-flash-lite-preview",
 };
 
 // Danger Zone Component
@@ -186,6 +193,7 @@ export default function SettingsPage() {
     pollinations: "",
     inworld: "",
     whisk: "",
+    anthropic: "",
   });
   const [showApiKeys, setShowApiKeys] = useState(false);
 
@@ -203,6 +211,7 @@ export default function SettingsPage() {
     pollinations: boolean;
     inworld: boolean;
     whisk: boolean;
+    anthropic: boolean;
     whiskStatus?: {
       isValid: boolean;
       isExpired: boolean;
@@ -250,7 +259,7 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings/status"] });
-      setApiKeys({ gemini: "", groq: "", speechify: "", freepik: "", wavespeed: "", runpod: "", pollinations: "", inworld: "", whisk: "" });
+      setApiKeys({ gemini: "", groq: "", speechify: "", freepik: "", wavespeed: "", runpod: "", pollinations: "", inworld: "", whisk: "", anthropic: "" });
       setShowApiKeys(false);
       toast({
         title: "API Keys Updated",
@@ -505,6 +514,17 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between p-4 rounded-lg border">
                     <div className="flex items-center gap-3">
+                      <Sparkles className="w-5 h-5 text-violet-500" />
+                      <div>
+                        <p className="font-medium">Claude AI</p>
+                        <p className="text-xs text-muted-foreground">Image Prompts</p>
+                      </div>
+                    </div>
+                    <StatusIcon connected={apiStatus?.anthropic} />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-lg border">
+                    <div className="flex items-center gap-3">
                       <Mic className="w-5 h-5 text-purple-500" />
                       <div>
                         <p className="font-medium">Speechify</p>
@@ -586,6 +606,64 @@ export default function SettingsPage() {
                         Fallback: {settings.scriptProvider === "groq" ? "Gemini" : "Groq"}
                       </Badge>
                     </div>
+                  </div>
+
+                  <Separator className="my-4" />
+
+                  <div>
+                    <h4 className="font-medium mb-2">Image Prompt Provider</h4>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Choose which AI generates the image prompts for each scene. Claude produces higher quality cinematic prompts.
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <Select
+                        value={settings.promptProvider || "groq"}
+                        onValueChange={(v) => setSettings(prev => ({ ...prev, promptProvider: v as PromptProvider }))}
+                      >
+                        <SelectTrigger className="w-[250px]">
+                          <SelectValue placeholder="Select prompt provider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="groq">Groq AI (Fast)</SelectItem>
+                          <SelectItem value="gemini">Gemini AI (Google)</SelectItem>
+                          <SelectItem value="claude">Claude AI (Higher Quality)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {settings.promptProvider === "claude" && (
+                        <Select
+                          value={settings.claudeModel || "claude-sonnet-4-6"}
+                          onValueChange={(v) => setSettings(prev => ({ ...prev, claudeModel: v }))}
+                        >
+                          <SelectTrigger className="w-[280px]">
+                            <SelectValue placeholder="Select Claude model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (Fastest)</SelectItem>
+                            <SelectItem value="claude-sonnet-4-6">Claude Sonnet 4.6 (Recommended)</SelectItem>
+                            <SelectItem value="claude-opus-4-6">Claude Opus 4.6 (Most Capable)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {settings.promptProvider === "gemini" && (
+                        <Select
+                          value={settings.geminiPromptModel || "gemini-3.1-flash-lite-preview"}
+                          onValueChange={(v) => setSettings(prev => ({ ...prev, geminiPromptModel: v }))}
+                        >
+                          <SelectTrigger className="w-[280px]">
+                            <SelectValue placeholder="Select Gemini model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash-Lite (Fastest)</SelectItem>
+                            <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    {settings.promptProvider === "claude" && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Note: Claude Sonnet/Opus share a limit of 5 requests/minute. For faster generation use Haiku.
+                      </p>
+                    )}
                   </div>
 
                   <Separator className="my-4" />
@@ -681,6 +759,17 @@ export default function SettingsPage() {
                           value={apiKeys.groq}
                           onChange={(e) => setApiKeys(prev => ({ ...prev, groq: e.target.value }))}
                           data-testid="input-groq-key"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="anthropicKey">Anthropic API Key</Label>
+                        <Input
+                          id="anthropicKey"
+                          type="password"
+                          placeholder={apiStatus?.anthropic ? "Key configured" : "Enter API key"}
+                          value={apiKeys.anthropic}
+                          onChange={(e) => setApiKeys(prev => ({ ...prev, anthropic: e.target.value }))}
+                          data-testid="input-anthropic-key"
                         />
                       </div>
                       <div className="space-y-2">

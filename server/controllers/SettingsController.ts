@@ -34,6 +34,9 @@ const settingsUpdateSchema = z.object({
     scriptProvider: z.enum(["gemini", "groq"]).optional(),
     defaultImageGenerator: z.string().optional(),
     defaultPollinationsModel: z.string().optional(),
+    promptProvider: z.enum(["groq", "claude", "gemini"]).optional(),
+    claudeModel: z.string().optional(),
+    geminiPromptModel: z.string().optional(),
 });
 
 export class SettingsController extends BaseController {
@@ -59,6 +62,9 @@ export class SettingsController extends BaseController {
                 scriptProvider: body.scriptProvider,
                 defaultImageGenerator: body.defaultImageGenerator,
                 defaultPollinationsModel: body.defaultPollinationsModel,
+                promptProvider: body.promptProvider,
+                claudeModel: body.claudeModel,
+                geminiPromptModel: body.geminiPromptModel,
             });
             return res.json(getAppSettings());
         } catch (error) {
@@ -93,6 +99,7 @@ export class SettingsController extends BaseController {
                 inworld: hasKey("inworld", "INWORLD_API_KEY"),
                 whisk: hasKey("whisk", "WHISK_COOKIE"),
                 whiskStatus: whiskStatus,
+                anthropic: hasKey("anthropic", "ANTHROPIC_API_KEY"),
             });
         } catch (error) {
             return this.handleError(error, res, 'SettingsController.getApiKeysStatus');
@@ -105,7 +112,7 @@ export class SettingsController extends BaseController {
     async updateApiKeys(req: Request, res: Response) {
         try {
             const userId = this.getUserId(req);
-            const { gemini, groq, speechify, freepik, wavespeed, runpod, pollinations, inworld, whisk } = req.body;
+            const { gemini, groq, speechify, freepik, wavespeed, runpod, pollinations, inworld, whisk, anthropic } = req.body;
 
             // Helper to save API key to database (upsert)
             const saveKeyToDb = async (provider: string, apiKey: string | undefined) => {
@@ -129,6 +136,7 @@ export class SettingsController extends BaseController {
                 saveKeyToDb("pollinations", pollinations),
                 saveKeyToDb("inworld", inworld),
                 saveKeyToDb("whisk", whisk),
+                saveKeyToDb("anthropic", anthropic),
             ]);
 
             // Also set in process.env for immediate use (runtime only)
@@ -141,6 +149,7 @@ export class SettingsController extends BaseController {
             if (pollinations?.trim()) process.env.POLLINATIONS_API_KEY = pollinations.trim();
             if (inworld?.trim()) process.env.INWORLD_API_KEY = inworld.trim();
             if (whisk?.trim()) process.env.WHISK_COOKIE = whisk.trim();
+            if (anthropic?.trim()) process.env.ANTHROPIC_API_KEY = anthropic.trim();
 
             this.logInfo("API", "API keys saved to database", {
                 userId,
@@ -178,6 +187,7 @@ export class SettingsController extends BaseController {
                     whisk: hasKey("whisk", "WHISK_COOKIE"),
                     pexels: hasKey("pexels", "PEXELS_API_KEY"),
                     pixabay: hasKey("pixabay", "PIXABAY_API_KEY"),
+                    anthropic: hasKey("anthropic", "ANTHROPIC_API_KEY"),
                 },
             });
         } catch (error) {
